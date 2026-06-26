@@ -1,0 +1,158 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --page: #fbf7f1;
+  --surface: #fffdf8;
+  --surface-soft: #f5ecdf;
+  --text: #1d1712;
+  --muted: #776a5d;
+  --border: rgba(47, 35, 24, 0.14);
+  --gold: #b88945;
+  --gold-dark: #7b4f22;
+  --nav: rgba(255, 253, 248, 0.78);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #080705;
+  --surface: #12100d;
+  --surface-soft: #1c1711;
+  --text: #fff6e8;
+  --muted: #c8b8a3;
+  --border: rgba(255, 246, 232, 0.16);
+  --gold: #d2aa6a;
+  --gold-dark: #9b6a33;
+  --nav: rgba(8, 7, 5, 0.74);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  width: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  width: 100%;
+  overflow-x: hidden;
+  background: var(--page);
+  color: var(--text);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  text-rendering: geometricPrecision;
+}
+
+#root {
+  min-height: 100vh;
+  width: 100%;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+body,
+button,
+input,
+select,
+textarea,
+a {
+  transition:
+    background-color 320ms ease,
+    border-color 320ms ease,
+    color 320ms ease,
+    box-shadow 320ms ease,
+    opacity 320ms ease;
+}
+
+button,
+a {
+  cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0.55;
+}
+
+::selection {
+  background: rgba(184, 137, 69, 0.28);
+}
+
+.glass-noise {
+  background-image:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02));
+}
+
+.arena-page {
+  --arena-bg: #f6f1eb;
+  --arena-surface: rgba(255, 255, 255, 0.72);
+  --arena-surface-strong: #ffffff;
+  --arena-surface-soft: rgba(255, 255, 255, 0.5);
+  --arena-text: #1f2937;
+  --arena-muted: #6b7280;
+  --arena-border: rgba(15, 23, 42, 0.08);
+  --arena-accent: #ad7c4f;
+  --arena-accent-strong: #8a5f3c;
+  --arena-shadow: 0 30px 80px rgba(15, 23, 42, 0.1);
+  background:
+    radial-gradient(circle at top left, rgba(173, 124, 79, 0.12), transparent 30%),
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.08), transparent 28%),
+    var(--arena-bg);
+}
+
+[data-theme="dark"] .arena-page {
+  --arena-bg: #070b14;
+  --arena-surface: rgba(11, 15, 26, 0.72);
+  --arena-surface-strong: #0d1321;
+  --arena-surface-soft: rgba(11, 15, 26, 0.45);
+  --arena-text: #f5f7fb;
+  --arena-muted: #94a3b8;
+  --arena-border: rgba(148, 163, 184, 0.14);
+  --arena-accent: #d6ab78;
+  --arena-accent-strong: #f1c18a;
+  --arena-shadow: 0 40px 100px rgba(0, 0, 0, 0.45);
+}
+
+.arena-glass {
+  background: var(--arena-surface);
+  border: 1px solid var(--arena-border);
+  box-shadow: var(--arena-shadow);
+  backdrop-filter: blur(22px);
+}
+
+.arena-hero-grid {
+  background-image:
+    linear-gradient(rgba(7, 11, 20, 0.04), rgba(7, 11, 20, 0.12)),
+    linear-gradient(120deg, rgba(173, 124, 79, 0.14), rgba(214, 171, 120, 0.03));
+}
+
+.premium-scrollbar::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.premium-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(184, 137, 69, 0.5);
+  border-radius: 999px;
+}
+
+@media (max-width: 640px) {
+  .arena-glass {
+    backdrop-filter: blur(16px);
+  }
+}

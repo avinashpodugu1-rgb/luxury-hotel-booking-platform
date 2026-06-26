@@ -1,0 +1,215 @@
+{
+  "info": {
+    "name": "Room Availability Calendar — API Tests",
+    "description": "20 test cases for SRI NIRVANA PLAZA Room Availability Calendar API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000", "type": "string" },
+    { "key": "token", "value": "", "type": "string" },
+    { "key": "adminToken", "value": "", "type": "string" },
+    { "key": "bookingId", "value": "", "type": "string" },
+    { "key": "maintenanceBlockId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "T001 - Register new customer",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"fullName\":\"Test Guest\",\"email\":\"test@hotel.com\",\"phone\":\"9876543210\",\"password\":\"Test@1234\"}" }
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 201', () => pm.response.to.have.status(201));", "pm.test('Has token', () => { const body = pm.response.json(); pm.expect(body.token).to.be.a('string'); });"] } }]
+        },
+        {
+          "name": "T002 - Login valid credentials",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"email\":\"test@hotel.com\",\"password\":\"Test@1234\",\"role\":\"customer\"}" }
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));", "const body = pm.response.json(); pm.collectionVariables.set('token', body.token); pm.test('Token saved', () => pm.expect(body.token).to.be.a('string'));"] } }]
+        },
+        {
+          "name": "T003 - Login wrong password",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"email\":\"test@hotel.com\",\"password\":\"wrongpass\",\"role\":\"customer\"}" }
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 401', () => pm.response.to.have.status(401));"] } }]
+        },
+        {
+          "name": "T004 - Duplicate email registration",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"fullName\":\"Test Guest\",\"email\":\"test@hotel.com\",\"phone\":\"9876543210\",\"password\":\"Test@1234\"}" }
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 409', () => pm.response.to.have.status(409));"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Rooms",
+      "item": [
+        {
+          "name": "T005 - List all rooms",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/rooms" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));", "pm.test('Has rooms array', () => { const body = pm.response.json(); pm.expect(body.rooms).to.be.an('array'); pm.expect(body.rooms.length).to.be.at.least(1); });"] } }]
+        },
+        {
+          "name": "T006 - Filter rooms by category",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/rooms?category=Deluxe" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));", "pm.test('Only Deluxe rooms', () => { const body = pm.response.json(); body.rooms.forEach(r => pm.expect(r.category || r.roomType).to.include('Deluxe')); });"] } }]
+        },
+        {
+          "name": "T007 - Get single room detail",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/rooms/101" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));", "pm.test('Has bookedDates', () => { const body = pm.response.json(); pm.expect(body.bookedDates).to.be.an('array'); });"] } }]
+        },
+        {
+          "name": "T008 - Room availability for date range",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/rooms/101/availability?start=2026-07-01&end=2026-07-07" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));", "pm.test('Has 7 dates', () => { const body = pm.response.json(); pm.expect(body.dates.length).to.equal(7); });"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Calendar",
+      "item": [
+        {
+          "name": "T009 - Get calendar for date range",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/calendar?start=2026-07-01&end=2026-07-07" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));", "pm.test('Has rooms with dates', () => { const body = pm.response.json(); pm.expect(body.rooms).to.be.an('array'); pm.expect(body.rooms[0].dates.length).to.equal(7); });"] } }]
+        },
+        {
+          "name": "T010 - Calendar missing params",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/calendar" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 400', () => pm.response.to.have.status(400));"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Bookings",
+      "item": [
+        {
+          "name": "T011 - Create valid booking",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{token}}" }],
+            "body": { "mode": "raw", "raw": "{\"roomId\":\"103\",\"checkIn\":\"2026-08-01\",\"checkOut\":\"2026-08-03\",\"guests\":2,\"guestName\":\"Test Guest\",\"email\":\"test@hotel.com\",\"paymentMethod\":\"UPI\"}" }
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 201', () => pm.response.to.have.status(201));", "const body = pm.response.json(); pm.collectionVariables.set('bookingId', body.booking.id); pm.test('Has booking id', () => pm.expect(body.booking.id).to.be.a('string'));"] } }]
+        },
+        {
+          "name": "T012 - Booking conflict same dates",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{token}}" }],
+            "body": { "mode": "raw", "raw": "{\"roomId\":\"103\",\"checkIn\":\"2026-08-01\",\"checkOut\":\"2026-08-03\",\"guests\":2,\"guestName\":\"Another Guest\",\"email\":\"another@hotel.com\",\"paymentMethod\":\"UPI\"}" }
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 409', () => pm.response.to.have.status(409));"] } }]
+        },
+        {
+          "name": "T013 - Missing roomId",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{token}}" }],
+            "body": { "mode": "raw", "raw": "{\"checkIn\":\"2026-08-05\",\"checkOut\":\"2026-08-07\",\"guests\":1}" }
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 400', () => pm.response.to.have.status(400));"] } }]
+        },
+        {
+          "name": "T014 - Exceed capacity",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{token}}" }],
+            "body": { "mode": "raw", "raw": "{\"roomId\":\"101\",\"checkIn\":\"2026-09-01\",\"checkOut\":\"2026-09-03\",\"guests\":5,\"guestName\":\"Big Group\",\"email\":\"test@hotel.com\",\"paymentMethod\":\"UPI\",\"guestDetails\":[{\"name\":\"G1\",\"age\":\"30\",\"gender\":\"M\",\"idProof\":\"ID1\"},{\"name\":\"G2\",\"age\":\"28\",\"gender\":\"F\",\"idProof\":\"ID2\"},{\"name\":\"G3\",\"age\":\"25\",\"gender\":\"M\",\"idProof\":\"ID3\"},{\"name\":\"G4\",\"age\":\"22\",\"gender\":\"F\",\"idProof\":\"ID4\"},{\"name\":\"G5\",\"age\":\"20\",\"gender\":\"M\",\"idProof\":\"ID5\"}]}" }
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 400', () => pm.response.to.have.status(400));"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Operations",
+      "item": [
+        {
+          "name": "T015 - Create housekeeping task",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/housekeeping_tasks",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"room_id\":\"101\",\"task_type\":\"cleaning\",\"status\":\"pending\",\"assigned_to\":\"Staff A\",\"priority\":\"High\",\"notes\":\"Post-checkout deep clean\"}" }
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 201', () => pm.response.to.have.status(201));"] } }]
+        },
+        {
+          "name": "T016 - Create maintenance block",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/maintenance_blocks",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"room_id\":\"102\",\"start_date\":\"2026-07-10\",\"end_date\":\"2026-07-12\",\"reason\":\"AC repair\",\"created_by\":\"Manager\",\"status\":\"active\"}" }
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 201', () => pm.response.to.have.status(201));", "const body = pm.response.json(); pm.collectionVariables.set('maintenanceBlockId', body.document.id);"] } }]
+        },
+        {
+          "name": "T017 - Complete maintenance block",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/api/maintenance_blocks/{{maintenanceBlockId}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"status\":\"completed\"}" }
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "item": [
+        {
+          "name": "T018 - Get analytics summary",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/analytics/summary" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));", "pm.test('Has all three keys', () => { const body = pm.response.json(); pm.expect(body.occupancy_summary).to.be.an('object'); pm.expect(body.allocation_priorities).to.be.an('array'); pm.expect(body.occupancy_text).to.be.a('string'); });"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "T019 - Customer blocked from admin",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/admin/dashboard",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 403', () => pm.response.to.have.status(403));"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Integration",
+      "item": [
+        {
+          "name": "T020 - Calendar reflects booking from T011",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/calendar?start=2026-08-01&end=2026-08-03" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));", "pm.test('Room 103 shows booked', () => { const body = pm.response.json(); const room103 = body.rooms.find(r => r.roomNumber === '103'); pm.expect(room103).to.exist; const aug1 = room103.dates.find(d => d.date === '2026-08-01'); pm.expect(aug1.status).to.equal('booked'); });"] } }]
+        }
+      ]
+    }
+  ]
+}

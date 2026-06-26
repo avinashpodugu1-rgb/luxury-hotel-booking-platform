@@ -1,0 +1,62 @@
+# ─── Frontend / Node ─────────────────────────────────────────────
+node_modules/
+dist/
+.dist/
+.cache/
+.parcel-cache/
+
+# Vite
+vite.config.ts.timestamp*
+
+# Environment files (local overrides)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# ─── Backend / Python ────────────────────────────────────────────
+backend/.env
+backend/.venv/
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/**/*.pyo
+backend/*.pyc
+
+# Firebase service account key — NEVER commit this
+backend/serviceAccountKey.json
+serviceAccountKey.json
+
+# Python packaging
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Testing
+.pytest_cache/
+backend/tests/__pycache__/
+tests/__pycache__/
+coverage/
+.coverage
+
+# ─── IDE / Tools ─────────────────────────────────────────────────
+.vscode/
+.idea/
+*.code-workspace
+.agents/
+skills-lock.json
+
+# ─── Logs ────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

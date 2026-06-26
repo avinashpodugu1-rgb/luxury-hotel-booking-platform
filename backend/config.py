@@ -1,0 +1,24 @@
+import os
+from datetime import timedelta
+
+
+class Config:
+    SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change-me-jwt")
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=7)
+    FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "")
+    FIREBASE_CREDENTIALS_JSON = os.getenv("FIREBASE_CREDENTIALS_JSON", "")
+    FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID", "")
+    GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+    RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "")
+    RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    WHATSAPP_PROVIDER = os.getenv("WHATSAPP_PROVIDER", "dry_run")
+    WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+    WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+    WHATSAPP_API_VERSION = os.getenv("WHATSAPP_API_VERSION", "v20.0")
+    WHATSAPP_DEFAULT_COUNTRY_CODE = os.getenv("WHATSAPP_DEFAULT_COUNTRY_CODE", "91")
+    ADMIN_WHATSAPP_NUMBERS = os.getenv("ADMIN_WHATSAPP_NUMBERS", "")
+    NOTIFICATION_SCHEDULER_ENABLED = os.getenv("NOTIFICATION_SCHEDULER_ENABLED", "true").lower() == "true"
+    NOTIFICATION_SCHEDULER_INTERVAL_SECONDS = int(os.getenv("NOTIFICATION_SCHEDULER_INTERVAL_SECONDS", "60"))
+    PAYMENT_EXPIRATION_HOURS = int(os.getenv("PAYMENT_EXPIRATION_HOURS", "24"))
