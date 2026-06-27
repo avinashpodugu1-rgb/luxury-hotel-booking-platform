@@ -11,53 +11,62 @@ scheduler = BackgroundScheduler(timezone="UTC")
 
 def process_due_notifications(app, limit=50):
     with app.app_context():
-        now = datetime.now(timezone.utc)
-        query = (
-            get_db()
-            .collection("notifications")
-            .where("status", "==", "Pending")
-            .where("scheduledTime", "<=", now)
-            .limit(limit)
-        )
-        for notification in query.stream():
-            send_notification_reference(notification.reference)
+        try:
+            now = datetime.now(timezone.utc)
+            query = (
+                get_db()
+                .collection("notifications")
+                .where("status", "==", "Pending")
+                .where("scheduledTime", "<=", now)
+                .limit(limit)
+            )
+            for notification in query.stream():
+                send_notification_reference(notification.reference)
+        except Exception as e:
+            print(f"[SCHEDULER] process_due_notifications skipped (Firebase not ready): {e}")
 
 
 def process_scheduled_tasks(app):
     with app.app_context():
-        from services.automation_service import AutomationService
-        db = get_db()
-        now = datetime.now(timezone.utc)
-        query = (
-            db.collection("scheduled_tasks")
-            .where("status", "==", "Pending")
-            .where("scheduled_time", "<=", now)
-            .limit(50)
-        )
-        for task in query.stream():
-            AutomationService.execute_scheduled_task(task.id)
+        try:
+            from services.automation_service import AutomationService
+            db = get_db()
+            now = datetime.now(timezone.utc)
+            query = (
+                db.collection("scheduled_tasks")
+                .where("status", "==", "Pending")
+                .where("scheduled_time", "<=", now)
+                .limit(50)
+            )
+            for task in query.stream():
+                AutomationService.execute_scheduled_task(task.id)
+        except Exception as e:
+            print(f"[SCHEDULER] process_scheduled_tasks skipped (Firebase not ready): {e}")
 
 
 def trigger_daily_report(app):
     with app.app_context():
-        from services.automation_service import AutomationService
-        today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        db = get_db()
-        matches = list(db.collection("scheduled_tasks")
-                       .where("taskType", "==", "daily_operations_report")
-                       .where("bookingId", "==", f"DAILY-{today_str}")
-                       .limit(1).stream())
-        if not matches:
-            task_id = AutomationService._create_scheduled_task(
-                booking_id=f"DAILY-{today_str}",
-                guest_id="SYSTEM",
-                phone_number="SYSTEM",
-                task_type="daily_operations_report",
-                scheduled_time=datetime.now(timezone.utc),
-                payload={}
-            )
-            if task_id:
-                AutomationService.execute_scheduled_task(task_id)
+        try:
+            from services.automation_service import AutomationService
+            today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            db = get_db()
+            matches = list(db.collection("scheduled_tasks")
+                           .where("taskType", "==", "daily_operations_report")
+                           .where("bookingId", "==", f"DAILY-{today_str}")
+                           .limit(1).stream())
+            if not matches:
+                task_id = AutomationService._create_scheduled_task(
+                    booking_id=f"DAILY-{today_str}",
+                    guest_id="SYSTEM",
+                    phone_number="SYSTEM",
+                    task_type="daily_operations_report",
+                    scheduled_time=datetime.now(timezone.utc),
+                    payload={}
+                )
+                if task_id:
+                    AutomationService.execute_scheduled_task(task_id)
+        except Exception as e:
+            print(f"[SCHEDULER] trigger_daily_report skipped (Firebase not ready): {e}")
 
 
 def start_notification_scheduler(app):

@@ -10,6 +10,8 @@ from services.whatsapp_service import send_whatsapp_message, normalize_phone_num
 from services.gst_service import create_gst_entry
 from services.date_utils import parse_iso_date, each_date_inclusive
 from services.email_service import send_email
+from services.sms_service import send_sms_booking_confirmation, send_sms_payment_reminder, send_sms_cancellation, send_sms_checkin_reminder
+from services.push_service import send_push_booking_confirmed, send_push_payment_reminder, send_push_checkin_reminder, send_push_cancellation
 
 # Import notification messages templates
 from services.notification_service import (
@@ -32,6 +34,8 @@ DEFAULT_SETTINGS = {
     "booking_expiry_hours": 24,
     "whatsapp_enabled": False,
     "email_enabled": True,
+    "sms_enabled": False,
+    "push_enabled": True,
     "invoice_generation": True,
     "max_retries": 3,
     "business_hours_start": "08:00",
@@ -613,10 +617,18 @@ Sri Nirvana Plaza"""
             if not booking or booking.get("payment_status") == "paid":
                 return # already paid
             
-            # Send WhatsApp reminder - Skipped if disabled
+            # Send WhatsApp reminder
             if settings.get("whatsapp_enabled", False):
                 msg = payment_reminder_message(booking, task_type)
                 send_whatsapp_message(phone, msg)
+            
+            # Send SMS reminder
+            if settings.get("sms_enabled", False):
+                send_sms_payment_reminder(phone, booking, task_type)
+            
+            # Send Push reminder
+            if settings.get("push_enabled", True):
+                send_push_payment_reminder(booking.get("user_id", ""), booking)
             
             # Send Email reminder
             if settings.get("email_enabled", True):
@@ -670,10 +682,18 @@ Sri Nirvana Plaza"""
             if not booking or booking.get("status") == "cancelled":
                 return
             
-            # WhatsApp - Skipped if disabled
+            # WhatsApp
             if settings.get("whatsapp_enabled", False):
                 msg = checkin_reminder_message(booking)
                 send_whatsapp_message(phone, msg)
+            
+            # SMS
+            if settings.get("sms_enabled", False):
+                send_sms_checkin_reminder(phone, booking)
+            
+            # Push
+            if settings.get("push_enabled", True):
+                send_push_checkin_reminder(booking.get("user_id", ""), booking)
                 
             if settings.get("email_enabled", True):
                 msg = checkin_reminder_message(booking)

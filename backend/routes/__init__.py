@@ -9,6 +9,8 @@ from .reviews import reviews_bp
 from .rooms import rooms_bp
 from .wishlist import wishlist_bp
 from .automation import automation_bp
+from .analytics import analytics_bp
+from .guests import guests_bp
 
 
 def register_blueprints(app):
@@ -23,3 +25,5 @@ def register_blueprints(app):
     app.register_blueprint(notifications_bp, url_prefix="/api")
     app.register_blueprint(invoices_bp, url_prefix="/api")
     app.register_blueprint(automation_bp, url_prefix="/api")
+    app.register_blueprint(analytics_bp, url_prefix="/api")
+    app.register_blueprint(guests_bp, url_prefix="/api")

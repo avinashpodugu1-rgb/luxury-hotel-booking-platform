@@ -1844,9 +1844,28 @@ function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: user?.name ?? "", phone: user?.phone ?? "", avatar: user?.avatar ?? "" });
   const [profileMessage, setProfileMessage] = useState("");
+  const [loyalty, setLoyalty] = useState<{ points: number; tier: string; tierColor: string; perks: string[]; nextTier: string | null; pointsToNextTier: number; progressPercent: number } | null>(null);
+  const [guestBookings, setGuestBookings] = useState<Record<string, unknown>[]>([]);
+  const [stats, setStats] = useState<{ totalBookings: number; totalSpent: number; totalNights: number } | null>(null);
+  const [activeTab, setActiveTab] = useState<"profile" | "loyalty" | "bookings">("profile");
 
   useEffect(() => {
-    if (user) setProfileForm({ name: user.name, phone: user.phone ?? "", avatar: user.avatar });
+    if (user) {
+      setProfileForm({ name: user.name, phone: user.phone ?? "", avatar: user.avatar });
+      // Fetch loyalty + bookings from backend
+      const userId = (user as Record<string, unknown>).id as string | undefined;
+      if (userId) {
+        apiClient.get(`/guests/${userId}/profile`).then((res) => {
+          const data = res.data as { loyalty?: typeof loyalty; stats?: typeof stats };
+          if (data.loyalty) setLoyalty(data.loyalty);
+          if (data.stats) setStats(data.stats);
+        }).catch(() => {});
+        apiClient.get(`/guests/${userId}/bookings`).then((res) => {
+          const data = res.data as { bookings?: Record<string, unknown>[] };
+          if (data.bookings) setGuestBookings(data.bookings);
+        }).catch(() => {});
+      }
+    }
   }, [user]);
 
   if (!user) {
@@ -1859,86 +1878,191 @@ function ProfilePage() {
     );
   }
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
-
+  const handleLogout = () => { logout(); navigate("/login"); };
   const handleAvatarUpload = (file: File | undefined) => {
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => setProfileForm((current) => ({ ...current, avatar: String(reader.result) }));
+    reader.onload = () => setProfileForm((c) => ({ ...c, avatar: String(reader.result) }));
     reader.readAsDataURL(file);
   };
-
   const handleSaveProfile = async () => {
-    try {
-      await updateProfile(profileForm);
-      setIsEditing(false);
-      setProfileMessage("Profile updated successfully. WhatsApp notifications will use this phone number.");
-    } catch {
-      setProfileMessage("Unable to update profile. Please try again.");
-    }
+    try { await updateProfile(profileForm); setIsEditing(false); setProfileMessage("Profile updated successfully."); }
+    catch { setProfileMessage("Unable to update profile. Please try again."); }
   };
 
-  const testWhatsApp = async () => {
-    if (!profileForm.phone) {
-      setProfileMessage("Add your phone number before testing WhatsApp.");
-      return;
-    }
+  const downloadPDF = async (bookingId: string) => {
     try {
-      await apiClient.post("/notifications/test-whatsapp", { phoneNumber: profileForm.phone });
-      setProfileMessage("WhatsApp backend test sent. Check backend logs or Admin > Notifications logs.");
-    } catch {
-      setProfileMessage("Backend is not connected in preview. Phone number is saved and will be used when backend is running.");
-    }
+      const res = await apiClient.get(`/bookings/${bookingId}/invoice/pdf`, { responseType: "blob" });
+      const url = URL.createObjectURL(new Blob([res.data as BlobPart], { type: "application/pdf" }));
+      const a = document.createElement("a"); a.href = url; a.download = `invoice-${bookingId}.pdf`; a.click();
+      URL.revokeObjectURL(url);
+    } catch { alert("Invoice PDF not available yet. Please complete payment first."); }
+  };
+
+  const tierGradient: Record<string, string> = {
+    Platinum: "from-[#B8860B] to-[#FFD700]",
+    Gold: "from-[#DAA520] to-[#FFD700]",
+    Silver: "from-[#A8A8A8] to-[#D0D0D0]",
+    Bronze: "from-[#8B4513] to-[#CD7F32]",
   };
 
   return (
     <Page className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
+      {/* Header card */}
       <div className="rounded-[2.5rem] border border-[var(--border)] bg-[var(--surface)] p-8 shadow-[0_24px_80px_rgba(38,28,18,0.12)]">
         <div className="flex flex-wrap items-center gap-5">
-          <img src={profileForm.avatar || user.avatar} alt={user.name} className="h-24 w-24 rounded-full object-cover" />
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.32em] text-[var(--gold)]">Profile</p>
+          <img src={profileForm.avatar || user.avatar} alt={user.name} className="h-24 w-24 rounded-full object-cover ring-4 ring-[var(--gold)]/30" />
+          <div className="flex-1">
+            <p className="text-xs font-black uppercase tracking-[0.32em] text-[var(--gold)]">Guest Profile</p>
             <h1 className="mt-2 text-4xl font-black text-[var(--text)]">{user.name}</h1>
             <p className="mt-1 font-semibold text-[var(--muted)]">{user.email}</p>
+            {loyalty && (
+              <span className={`mt-2 inline-flex items-center gap-2 rounded-full bg-gradient-to-r px-3 py-1 text-xs font-black text-white ${tierGradient[loyalty.tier] ?? "from-[#888] to-[#aaa]"}`}>
+                ⭐ {loyalty.tier} Member · {loyalty.points.toLocaleString()} pts
+              </span>
+            )}
           </div>
         </div>
-        {isEditing ? (
-          <div className="mt-8 rounded-[2rem] border border-[var(--border)] bg-[var(--surface-soft)] p-5">
-            <h2 className="text-xl font-black text-[var(--text)]">Edit profile</h2>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <input value={profileForm.name} onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })} className={fieldClass} placeholder="Full Name" />
-              <input value={profileForm.phone} onChange={(event) => setProfileForm({ ...profileForm, phone: event.target.value })} className={fieldClass} placeholder="Phone Number for WhatsApp" />
-              <input type="file" accept="image/*" onChange={(event) => handleAvatarUpload(event.target.files?.[0])} className={fieldClass} />
-              <button type="button" onClick={testWhatsApp} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-5 py-3 text-sm font-black text-[var(--text)]">Test WhatsApp Backend</button>
-            </div>
-            <div className="mt-5 flex flex-wrap gap-3">
-              <button type="button" onClick={handleSaveProfile} className="rounded-full bg-[var(--text)] px-6 py-3 text-sm font-black text-[var(--page)]">Save profile</button>
-              <button type="button" onClick={() => setIsEditing(false)} className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-6 py-3 text-sm font-black text-[var(--text)]">Cancel</button>
+
+        {/* Stats row */}
+        {stats && (
+          <div className="mt-6 grid grid-cols-3 gap-3">
+            {[
+              { label: "Total Bookings", value: stats.totalBookings },
+              { label: "Nights Stayed", value: stats.totalNights },
+              { label: "Total Spent", value: `₹${stats.totalSpent.toLocaleString("en-IN")}` },
+            ].map((s) => (
+              <div key={s.label} className="rounded-2xl bg-[var(--surface-soft)] px-4 py-3 text-center">
+                <p className="text-xl font-black text-[var(--gold)]">{s.value}</p>
+                <p className="mt-1 text-xs font-bold text-[var(--muted)]">{s.label}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div className="mt-6 flex gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] p-1">
+          {(["profile", "loyalty", "bookings"] as const).map((tab) => (
+            <button key={tab} type="button" onClick={() => setActiveTab(tab)}
+              className={`flex-1 rounded-xl py-2 text-xs font-black uppercase tracking-wider transition ${activeTab === tab ? "bg-[var(--text)] text-[var(--page)] shadow" : "text-[var(--muted)]"}`}>
+              {tab === "profile" ? "👤 Profile" : tab === "loyalty" ? "⭐ Loyalty" : "📋 Bookings"}
+            </button>
+          ))}
+        </div>
+
+        {/* Profile Tab */}
+        {activeTab === "profile" && (
+          <div className="mt-6">
+            {isEditing ? (
+              <div className="rounded-[2rem] border border-[var(--border)] bg-[var(--surface-soft)] p-5">
+                <h2 className="text-xl font-black text-[var(--text)]">Edit Profile</h2>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <input value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} className={fieldClass} placeholder="Full Name" />
+                  <input value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} className={fieldClass} placeholder="Phone Number" />
+                  <input type="file" accept="image/*" onChange={(e) => handleAvatarUpload(e.target.files?.[0])} className={fieldClass} />
+                </div>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button type="button" onClick={handleSaveProfile} className="rounded-full bg-[var(--text)] px-6 py-3 text-sm font-black text-[var(--page)]">Save</button>
+                  <button type="button" onClick={() => setIsEditing(false)} className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-6 py-3 text-sm font-black text-[var(--text)]">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                <DetailPill label="Role" value={user.role} />
+                <DetailPill label="Phone" value={user.phone || "Not added"} />
+              </div>
+            )}
+            {profileMessage && <p className="mt-5 rounded-2xl bg-[var(--surface-soft)] px-4 py-3 text-sm font-bold text-[var(--gold)]">{profileMessage}</p>}
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button type="button" onClick={() => setIsEditing((c) => !c)} className="inline-flex items-center gap-2 rounded-full bg-[var(--text)] px-6 py-3 text-sm font-black text-[var(--page)] shadow-xl">
+                <Icon name="user" className="h-5 w-5" /> Edit Profile
+              </button>
+              <button type="button" onClick={handleLogout} className="inline-flex items-center gap-2 rounded-full bg-rose-500 px-6 py-3 text-sm font-black text-white shadow-xl shadow-rose-500/20">
+                <Icon name="logout" className="h-5 w-5" /> Logout
+              </button>
             </div>
           </div>
-        ) : null}
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
-          <DetailPill label="Role" value={user.role} />
-          <DetailPill label="Phone" value={user.phone || "Not added"} />
-        </div>
-        {profileMessage ? <p className="mt-5 rounded-2xl bg-[var(--surface-soft)] px-4 py-3 text-sm font-bold text-[var(--gold)]">{profileMessage}</p> : null}
-        <div className="mt-8 flex flex-wrap gap-3">
-          <button type="button" onClick={() => setIsEditing((current) => !current)} className="inline-flex items-center gap-2 rounded-full bg-[var(--text)] px-6 py-3 text-sm font-black text-[var(--page)] shadow-xl">
-            <Icon name="user" className="h-5 w-5" /> Edit Profile
-          </button>
-          <button type="button" onClick={handleLogout} className="inline-flex items-center gap-2 rounded-full bg-rose-500 px-6 py-3 text-sm font-black text-white shadow-xl shadow-rose-500/20">
-            <Icon name="logout" className="h-5 w-5" /> Logout
-          </button>
-        </div>
+        )}
+
+        {/* Loyalty Tab */}
+        {activeTab === "loyalty" && loyalty && (
+          <div className="mt-6 space-y-4">
+            <div className={`rounded-[2rem] bg-gradient-to-br ${tierGradient[loyalty.tier] ?? "from-[#888] to-[#aaa]"} p-6 text-white`}>
+              <p className="text-xs font-black uppercase tracking-widest opacity-80">{loyalty.tier} Member</p>
+              <p className="mt-2 text-4xl font-black">{loyalty.points.toLocaleString()} Points</p>
+              {loyalty.nextTier && (
+                <div className="mt-4">
+                  <p className="text-xs font-bold opacity-80">{loyalty.pointsToNextTier} pts to {loyalty.nextTier}</p>
+                  <div className="mt-2 h-2 w-full rounded-full bg-white/30">
+                    <div className="h-2 rounded-full bg-white" style={{ width: `${loyalty.progressPercent}%` }} />
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-soft)] p-4">
+              <h3 className="text-sm font-black text-[var(--text)]">Your Perks</h3>
+              <ul className="mt-3 space-y-2">
+                {loyalty.perks.map((perk) => (
+                  <li key={perk} className="flex items-center gap-2 text-sm text-[var(--muted)]">
+                    <span className="text-[var(--gold)]">✓</span> {perk}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-soft)] p-4">
+              <h3 className="text-sm font-black text-[var(--text)]">How to Earn Points</h3>
+              <div className="mt-3 grid grid-cols-3 gap-3 text-center">
+                {[{ label: "Per Stay", pts: "500 pts" }, { label: "Feedback", pts: "100 pts" }, { label: "Referral", pts: "200 pts" }].map((e) => (
+                  <div key={e.label} className="rounded-xl bg-[var(--surface)] p-3">
+                    <p className="text-sm font-black text-[var(--gold)]">{e.pts}</p>
+                    <p className="text-xs text-[var(--muted)]">{e.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bookings Tab */}
+        {activeTab === "bookings" && (
+          <div className="mt-6 space-y-4">
+            {guestBookings.length === 0 ? (
+              <p className="py-8 text-center text-[var(--muted)]">No bookings found.</p>
+            ) : (
+              guestBookings.map((b) => (
+                <div key={b.id as string} className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-soft)] p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-black text-[var(--text)]">Room {b.room_number as string} — {b.room_type as string}</p>
+                      <p className="mt-1 text-xs text-[var(--muted)]">{b.check_in as string} → {b.check_out as string}</p>
+                      <p className="mt-1 text-xs font-bold text-[var(--gold)]">₹{Number(b.total_amount ?? 0).toLocaleString("en-IN")}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <span className={`rounded-full px-3 py-1 text-xs font-black ${
+                        b.status === "confirmed" ? "bg-emerald-100 text-emerald-700" :
+                        b.status === "cancelled" ? "bg-rose-100 text-rose-700" :
+                        "bg-amber-100 text-amber-700"
+                      }`}>{String(b.status)}</span>
+                      {b.payment_status === "paid" && (
+                        <button type="button" onClick={() => downloadPDF(b.id as string)}
+                          className="inline-flex items-center gap-1 rounded-xl border border-[var(--gold)] px-3 py-1.5 text-xs font-black text-[var(--gold)] hover:bg-[var(--gold)] hover:text-white transition">
+                          📄 Download PDF
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
     </Page>
   );
 }
 
 function WishlistPage() {
+
   const { wishlist } = useHotel();
   const savedRooms = rooms.filter((room) => wishlist.includes(room.id));
   return (
