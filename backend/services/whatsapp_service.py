@@ -28,6 +28,26 @@ class WhatsAppService:
         self.phone_number_id = current_app.config.get("WHATSAPP_PHONE_NUMBER_ID", "")
         self.api_version = current_app.config.get("WHATSAPP_API_VERSION", "v20.0")
 
+        # Try to load custom configuration dynamically from Firestore
+        try:
+            from services.firestore_client import get_db
+            db = get_db()
+            doc = db.collection("automation_settings").document("config").get()
+            if doc.exists:
+                data = doc.to_dict() or {}
+                # Map automation settings to whatsapp config
+                if "whatsapp_provider" in data:
+                    self.provider = data["whatsapp_provider"]
+                if "whatsapp_access_token" in data:
+                    self.access_token = data["whatsapp_access_token"]
+                if "whatsapp_phone_number_id" in data:
+                    self.phone_number_id = data["whatsapp_phone_number_id"]
+                if "whatsapp_api_version" in data:
+                    self.api_version = data["whatsapp_api_version"]
+        except Exception as exc:
+            print(f"[WhatsAppService] Failed to load dynamic settings from Firestore: {exc}")
+
+
     def send_text(self, phone_number: str, message: str) -> WhatsAppResult:
         normalized_phone = normalize_phone_number(phone_number)
         if not normalized_phone:

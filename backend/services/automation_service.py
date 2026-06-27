@@ -33,6 +33,10 @@ DEFAULT_SETTINGS = {
     "reminder_timings": [10, 60, 1440],  # in minutes
     "booking_expiry_hours": 24,
     "whatsapp_enabled": False,
+    "whatsapp_provider": "dry_run",
+    "whatsapp_access_token": "",
+    "whatsapp_phone_number_id": "",
+    "whatsapp_api_version": "v20.0",
     "email_enabled": True,
     "sms_enabled": False,
     "push_enabled": True,
@@ -41,6 +45,7 @@ DEFAULT_SETTINGS = {
     "business_hours_start": "08:00",
     "business_hours_end": "22:00"
 }
+
 
 def get_settings():
     try:
