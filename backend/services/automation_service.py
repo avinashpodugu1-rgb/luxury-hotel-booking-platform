@@ -32,11 +32,6 @@ from services.notification_service import (
 DEFAULT_SETTINGS = {
     "reminder_timings": [10, 60, 1440],  # in minutes
     "booking_expiry_hours": 24,
-    "whatsapp_enabled": False,
-    "whatsapp_provider": "dry_run",
-    "whatsapp_access_token": "",
-    "whatsapp_phone_number_id": "",
-    "whatsapp_api_version": "v20.0",
     "email_enabled": True,
     "sms_enabled": False,
     "push_enabled": True,
@@ -622,11 +617,6 @@ Sri Nirvana Plaza"""
             if not booking or booking.get("payment_status") == "paid":
                 return # already paid
             
-            # Send WhatsApp reminder
-            if settings.get("whatsapp_enabled", False):
-                msg = payment_reminder_message(booking, task_type)
-                send_whatsapp_message(phone, msg)
-            
             # Send SMS reminder
             if settings.get("sms_enabled", False):
                 send_sms_payment_reminder(phone, booking, task_type)
@@ -665,11 +655,6 @@ Sri Nirvana Plaza"""
                         "status": "available",
                         "updated_at": server_timestamp()
                     })
-            
-            # Send WhatsApp cancellation notice - Skipped if disabled
-            if settings.get("whatsapp_enabled", False):
-                msg = booking_cancelled_message(booking)
-                send_whatsapp_message(phone, msg)
                 
             # Send Email cancellation notice
             if settings.get("email_enabled", True):
@@ -687,16 +672,11 @@ Sri Nirvana Plaza"""
             if not booking or booking.get("status") == "cancelled":
                 return
             
-            # WhatsApp
-            if settings.get("whatsapp_enabled", False):
-                msg = checkin_reminder_message(booking)
-                send_whatsapp_message(phone, msg)
-            
-            # SMS
+            # Send SMS
             if settings.get("sms_enabled", False):
                 send_sms_checkin_reminder(phone, booking)
             
-            # Push
+            # Send Push
             if settings.get("push_enabled", True):
                 send_push_checkin_reminder(booking.get("user_id", ""), booking)
                 
@@ -708,11 +688,6 @@ Sri Nirvana Plaza"""
             if not booking or booking.get("status") == "cancelled":
                 return
                 
-            # WhatsApp - Skipped if disabled
-            if settings.get("whatsapp_enabled", False):
-                msg = checkout_reminder_message()
-                send_whatsapp_message(phone, msg)
-                
             if settings.get("email_enabled", True):
                 msg = checkout_reminder_message()
                 send_email(booking.get("email", ""), "Check-out Reminder - Sri Nirvana Plaza", msg)
@@ -721,15 +696,11 @@ Sri Nirvana Plaza"""
             if not booking:
                 return
                 
-            # WhatsApp - Skipped if disabled
-            if settings.get("whatsapp_enabled", False):
-                msg = f"🏨 SRI NIRVANA PLAZA\n\nThank you for staying with us, {booking.get('guest_name')}!\n\nWe hope you had a luxurious stay. Please share your valuable feedback and collect 100 loyalty points + a discount coupon for your next reservation:\n\nReview Link: https://srinirvanaplaza.com/feedback?booking={booking_id}"
-                send_whatsapp_message(phone, msg)
-                
             # Send Email followup
             if settings.get("email_enabled", True):
                 msg = f"Dear {booking.get('guest_name')},\n\nThank you for staying at Sri Nirvana Plaza!\n\nWe hope you had a luxurious stay. Please share your valuable feedback and collect 100 loyalty points + a discount coupon for your next reservation:\n\nReview Link: https://srinirvanaplaza.com/feedback?booking={booking_id}"
                 send_email(booking.get("email", ""), "Feedback & Rewards - Sri Nirvana Plaza", msg)
+
 
         elif task_type == "daily_operations_report":
             # Generate Daily Operations Report at 8:00 AM

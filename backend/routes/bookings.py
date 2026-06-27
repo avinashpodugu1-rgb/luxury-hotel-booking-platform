@@ -56,6 +56,22 @@ def create_booking():
     transaction = db.transaction()
     user_id = str(get_jwt_identity())
     submitted_guest_details = payload.get("guestDetails") or payload.get("guest_details") or []
+    
+    # Enforce mandatory guest fields: name, age, gender, idProofType, idNumber
+    if not submitted_guest_details:
+        return jsonify({"message": "Guest details are required."}), 400
+    for idx, g in enumerate(submitted_guest_details):
+        if not g.get("name") or not str(g.get("name")).strip():
+            return jsonify({"message": f"Name is required for Guest {idx+1}."}), 400
+        if not g.get("age") or not str(g.get("age")).strip():
+            return jsonify({"message": f"Age is required for Guest {idx+1}."}), 400
+        if not g.get("gender") or not str(g.get("gender")).strip():
+            return jsonify({"message": f"Gender is required for Guest {idx+1}."}), 400
+        if not g.get("idProofType") or not str(g.get("idProofType")).strip():
+            return jsonify({"message": f"ID Proof Type is required for Guest {idx+1}."}), 400
+        if not g.get("idNumber") or not str(g.get("idNumber")).strip():
+            return jsonify({"message": f"ID Number is required for Guest {idx+1}."}), 400
+
 
     @firestore.transactional
     def reserve_room(tx):

@@ -1931,11 +1931,6 @@ export function getDetailRecord(recordType: string | undefined, recordId: string
 interface AutomationSettings {
   reminder_timings: number[];
   booking_expiry_hours: number;
-  whatsapp_enabled: boolean;
-  whatsapp_provider: string;
-  whatsapp_access_token: string;
-  whatsapp_phone_number_id: string;
-  whatsapp_api_version: string;
   email_enabled: boolean;
   invoice_generation: boolean;
   max_retries: number;
@@ -1984,11 +1979,6 @@ function AutomationModule({ notify }: { notify: (msg: string) => void }) {
   const [settings, setSettings] = useState<AutomationSettings>({
     reminder_timings: [10, 60, 1440],
     booking_expiry_hours: 24,
-    whatsapp_enabled: false,
-    whatsapp_provider: "dry_run",
-    whatsapp_access_token: "",
-    whatsapp_phone_number_id: "",
-    whatsapp_api_version: "v20.0",
     email_enabled: true,
     invoice_generation: true,
     max_retries: 3,
@@ -2149,66 +2139,6 @@ function AutomationModule({ notify }: { notify: (msg: string) => void }) {
 
             <div className="space-y-2 pt-2 border-t border-white/10">
               <label className="text-xs font-black uppercase tracking-wider text-[#d2aa6a] block">Channels & Integrations</label>
-              <div className="flex items-center justify-between py-1">
-                <span className="text-sm font-semibold text-white">WhatsApp Notifications</span>
-                <input
-                  type="checkbox"
-                  checked={settings.whatsapp_enabled}
-                  onChange={e => setSettings({ ...settings, whatsapp_enabled: e.target.checked })}
-                  className="w-4 h-4 accent-[#d2aa6a]"
-                />
-              </div>
-
-              {settings.whatsapp_enabled && (
-                <div className="pl-4 border-l-2 border-[#d2aa6a]/40 space-y-3 py-2 animate-fadeIn">
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-[#d2aa6a]">WhatsApp Provider</label>
-                    <select
-                      value={settings.whatsapp_provider}
-                      onChange={e => setSettings({ ...settings, whatsapp_provider: e.target.value })}
-                      className={`${inputClass} mt-1 text-xs`}
-                    >
-                      <option value="dry_run">Dry Run (Console Log)</option>
-                      <option value="meta">Meta Cloud API (Official)</option>
-                    </select>
-                  </div>
-
-                  {settings.whatsapp_provider === "meta" && (
-                    <>
-                      <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-[#d2aa6a]">Phone Number ID</label>
-                        <input
-                          type="text"
-                          value={settings.whatsapp_phone_number_id || ""}
-                          onChange={e => setSettings({ ...settings, whatsapp_phone_number_id: e.target.value })}
-                          placeholder="e.g. 1092837465928"
-                          className={`${inputClass} mt-1 text-xs`}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-[#d2aa6a]">Access Token</label>
-                        <input
-                          type="password"
-                          value={settings.whatsapp_access_token || ""}
-                          onChange={e => setSettings({ ...settings, whatsapp_access_token: e.target.value })}
-                          placeholder="EAABw..."
-                          className={`${inputClass} mt-1 text-xs`}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-[#d2aa6a]">API Version</label>
-                        <input
-                          type="text"
-                          value={settings.whatsapp_api_version || "v20.0"}
-                          onChange={e => setSettings({ ...settings, whatsapp_api_version: e.target.value })}
-                          placeholder="v20.0"
-                          className={`${inputClass} mt-1 text-xs`}
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
 
               <div className="flex items-center justify-between py-1">
                 <span className="text-sm font-semibold text-white">Email Integration</span>

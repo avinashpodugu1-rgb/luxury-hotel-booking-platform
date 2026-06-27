@@ -62,9 +62,11 @@ def login():
     payload = request.get_json() or {}
     email = (payload.get("email") or "").strip().lower()
     user = user_by_email(email)
+    if not user:
+        return jsonify({"message": "Account not found. Please register first."}), 404
     data = user.to_dict() if user else None
-    if not user or not data or not check_password_hash(data.get("password_hash", ""), payload.get("password") or ""):
-        return jsonify({"message": "Invalid email or password"}), 401
+    if not data or not check_password_hash(data.get("password_hash", ""), payload.get("password") or ""):
+        return jsonify({"message": "Invalid password"}), 401
     if payload.get("role") and payload["role"] != data.get("role", "customer"):
         return jsonify({"message": "Invalid portal for this user"}), 403
     return jsonify({"token": token_for(user.id, data.get("role", "customer")), "user": user_to_dict(user)})
@@ -84,27 +86,16 @@ def google_login():
 
     email = profile.get("email", "").lower()
     existing = user_by_email(email)
-    if existing:
-        existing.reference.update(
-            {"google_id": profile.get("sub"), "avatar_url": profile.get("picture"), "updated_at": server_timestamp()}
-        )
-        user = existing.reference.get()
-    else:
-        user_ref = get_db().collection("users").document()
-        user_ref.set(
-            {
-                "full_name": profile.get("name") or "Google Guest",
-                "email": email,
-                "google_id": profile.get("sub"),
-                "avatar_url": profile.get("picture"),
-                "role": "customer",
-                "created_at": server_timestamp(),
-                "updated_at": server_timestamp(),
-            }
-        )
-        user = user_ref.get()
+    if not existing:
+        return jsonify({"message": "This Google account is not registered. Please register first."}), 404
+
+    existing.reference.update(
+        {"google_id": profile.get("sub"), "avatar_url": profile.get("picture"), "updated_at": server_timestamp()}
+    )
+    user = existing.reference.get()
     role = (user.to_dict() or {}).get("role", "customer")
     return jsonify({"token": token_for(user.id, role), "user": user_to_dict(user)})
+
 
 
 @auth_bp.get("/profile")

@@ -191,15 +191,18 @@ type GuestDetail = {
   name: string;
   age: string;
   gender: string;
-  idProof: string;
+  idProofType: string;
+  idNumber: string;
 };
 
 const emptyGuestDetail = (index: number): GuestDetail => ({
-  name: index === 0 ? "Primary Guest" : "",
+  name: index === 0 ? "" : "",
   age: "",
   gender: "",
-  idProof: "",
+  idProofType: "",
+  idNumber: "",
 });
+
 
 const customerBookingsKey = (email: string) => `nirvana-customer-bookings-${email.trim().toLowerCase()}`;
 const allCustomerBookingsKey = "nirvana-all-customer-bookings";
@@ -1134,12 +1137,27 @@ function BookingPanel({ room }: { room: Room }) {
       navigate(`/login?redirect=${encodeURIComponent(location.pathname + location.search)}&reason=booking`);
       return;
     }
+
+    // Validate guest details
+    for (let i = 0; i < guests; i++) {
+      const g = guestDetails[i];
+      if (!g || !g.name.trim() || !g.age.trim() || !g.gender || !g.idProofType || !g.idNumber.trim()) {
+        setBookingError(`Please fill in all details (Name, Age, Gender, ID Proof Type, and ID Number) for Guest ${i + 1}.`);
+        return;
+      }
+      if (isNaN(parseInt(g.age))) {
+        setBookingError(`Please enter a valid age (number) for Guest ${i + 1}.`);
+        return;
+      }
+    }
+
     if (guests > maxOccupancy || guestDetails.length > maxOccupancy) {
       setBookingError(`Maximum occupancy reached. This room can accommodate only ${maxOccupancy} guests. Please choose another room or reduce the number of guests.`);
       return;
     }
     let createdBooking: { id?: string; subtotal?: number; taxes?: number; service_charge?: number; total_amount?: number } | null = null;
     try {
+
       const response = await apiClient.post<{ booking: { id?: string; subtotal?: number; taxes?: number; service_charge?: number; total_amount?: number } }>("/bookings", {
         roomId: room.number,
         guestName: user.name,
@@ -1296,19 +1314,27 @@ function BookingPanel({ room }: { room: Room }) {
             <div key={index} className="rounded-2xl bg-[var(--surface-soft)] p-3">
               <p className="mb-3 text-sm font-black text-[var(--text)]">Guest {index + 1}</p>
               <div className="grid gap-3 sm:grid-cols-2">
-                <input value={guest.name} onChange={(event) => updateGuestDetail(index, "name", event.target.value)} className={fieldClass} placeholder="Name" />
-                <input value={guest.age} onChange={(event) => updateGuestDetail(index, "age", event.target.value)} className={fieldClass} placeholder="Age" inputMode="numeric" />
+                <input value={guest.name} onChange={(event) => updateGuestDetail(index, "name", event.target.value)} className={fieldClass} placeholder="Full Name (Mandatory)" />
+                <input value={guest.age} onChange={(event) => updateGuestDetail(index, "age", event.target.value)} className={fieldClass} placeholder="Age (Mandatory)" inputMode="numeric" />
                 <select value={guest.gender} onChange={(event) => updateGuestDetail(index, "gender", event.target.value)} className={fieldClass}>
-                  <option value="">Gender</option>
+                  <option value="">Select Gender (Mandatory)</option>
                   <option>Female</option>
                   <option>Male</option>
                   <option>Other</option>
                 </select>
-                <input value={guest.idProof} onChange={(event) => updateGuestDetail(index, "idProof", event.target.value)} className={fieldClass} placeholder="ID Proof" />
+                <select value={guest.idProofType} onChange={(event) => updateGuestDetail(index, "idProofType", event.target.value)} className={fieldClass}>
+                  <option value="">Select ID Proof (Mandatory)</option>
+                  <option value="Aadhar Card">Aadhar Card</option>
+                  <option value="Voter ID">Voter ID</option>
+                  <option value="Driving License">Driving License</option>
+                  <option value="Passport">Passport</option>
+                </select>
+                <input value={guest.idNumber} onChange={(event) => updateGuestDetail(index, "idNumber", event.target.value)} className={`${fieldClass} sm:col-span-2`} placeholder="ID Number (Mandatory)" />
               </div>
             </div>
           ))}
         </div>
+
       </div>
 
       <div className="mt-5 grid grid-cols-3 gap-2">
@@ -1424,8 +1450,9 @@ function AuthPage({ defaultRole }: { defaultRole: "customer" | "admin" }) {
     try {
       await login(email, role, role === "admin" ? "Nirvana Admin" : name.trim() || undefined, password);
       navigate(role === "admin" ? "/admin" : customerRedirect);
-    } catch {
-      setError("Login failed. Please verify your email, password, and portal type.");
+    } catch (err: any) {
+      const serverMessage = err.response?.data?.message;
+      setError(serverMessage || "Login failed. Please verify your email, password, and portal type.");
     }
   };
 
@@ -1435,12 +1462,14 @@ function AuthPage({ defaultRole }: { defaultRole: "customer" | "admin" }) {
       if (credentialResponse.credential) {
         await apiClient.post("/auth/google", { credential: credentialResponse.credential });
       }
-    } catch {
-      // Local fallback keeps the demo usable when OAuth environment variables are not configured.
+      await loginWithGoogle(googleProfile?.email, googleProfile?.name || googleProfile?.given_name, credentialResponse.credential);
+      navigate(customerRedirect);
+    } catch (err: any) {
+      const serverMessage = err.response?.data?.message;
+      setError(serverMessage || "Google sign-in failed. Please register first.");
     }
-    await loginWithGoogle(googleProfile?.email, googleProfile?.name || googleProfile?.given_name, credentialResponse.credential);
-    navigate(customerRedirect);
   };
+
 
   return (
     <Page className="relative overflow-hidden px-4 py-12 sm:px-6 lg:px-8">
