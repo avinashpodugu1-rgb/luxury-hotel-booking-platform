@@ -273,7 +273,7 @@ export const downloadInvoice = (invoice: Invoice) => {
   doc.text("AMOUNT", right - 3, y + 6, { align: "right" });
 
   const taxableBase = invoice.subtotal;
-  const taxRate = 0.06; // CGST/SGST 6%
+
   const cgstVal = invoice.taxes / 2;
   const sgstVal = invoice.taxes / 2;
 

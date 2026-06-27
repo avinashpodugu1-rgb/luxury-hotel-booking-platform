@@ -155,6 +155,7 @@ type CustomerBooking = {
   roomType: string;
   roomImage: string;
   customerEmail: string;
+  customerPhone?: string;
   checkIn: string;
   checkOut: string;
   guests: number;
@@ -165,27 +166,7 @@ type CustomerBooking = {
   createdAt: string;
 };
 
-type PreviewNotification = {
-  id: string;
-  bookingId?: string;
-  phoneNumber?: string;
-  notificationType?: string;
-  scheduledTime?: string;
-  sentTime?: string;
-  status: "Pending" | "Sent" | "Cancelled" | "Failed";
-  retryCount?: number;
-  message: string;
-};
 
-type PreviewNotificationLog = {
-  id: string;
-  bookingId?: string;
-  phoneNumber?: string;
-  messageType?: string;
-  sentAt?: string;
-  deliveryStatus?: string;
-  providerResponse?: Record<string, unknown>;
-};
 
 type GuestDetail = {
   name: string;
@@ -206,8 +187,6 @@ const emptyGuestDetail = (index: number): GuestDetail => ({
 
 const customerBookingsKey = (email: string) => `nirvana-customer-bookings-${email.trim().toLowerCase()}`;
 const allCustomerBookingsKey = "nirvana-all-customer-bookings";
-const previewNotificationsKey = "nirvana-preview-notifications";
-const previewNotificationLogsKey = "nirvana-preview-notification-logs";
 
 const readCustomerBookings = (email: string): CustomerBooking[] => {
   try {
@@ -232,67 +211,8 @@ const saveCustomerBooking = (booking: CustomerBooking) => {
 
 const isUpcomingStay = (booking: CustomerBooking) => booking.status === "Confirmed" && booking.checkOut >= isoAfter(0);
 
-const readPreviewNotifications = (): PreviewNotification[] => {
-  try {
-    return JSON.parse(localStorage.getItem(previewNotificationsKey) || "[]") as PreviewNotification[];
-  } catch {
-    return [];
-  }
-};
 
-const readPreviewNotificationLogs = (): PreviewNotificationLog[] => {
-  try {
-    return JSON.parse(localStorage.getItem(previewNotificationLogsKey) || "[]") as PreviewNotificationLog[];
-  } catch {
-    return [];
-  }
-};
 
-const savePreviewNotification = (notification: PreviewNotification) => {
-  const notifications = readPreviewNotifications();
-  localStorage.setItem(previewNotificationsKey, JSON.stringify([notification, ...notifications.filter((item) => item.id !== notification.id)]));
-};
-
-const savePreviewNotificationLog = (log: PreviewNotificationLog) => {
-  const logs = readPreviewNotificationLogs();
-  localStorage.setItem(previewNotificationLogsKey, JSON.stringify([log, ...logs.filter((item) => item.id !== log.id)]));
-};
-
-const createPreviewWhatsAppAutomation = (invoice: Invoice) => {
-  const now = new Date().toISOString();
-  const phoneNumber = invoice.customerPhone || "Not provided";
-  const confirmationMessage = `🏨 SRI NIRVANA PLAZA\n\nHello ${invoice.customerName ?? "Guest"},\n\nYour booking has been confirmed successfully.\n\nBooking ID : ${invoice.bookingId ?? "N/A"}\n\nRoom Number : ${invoice.roomNumber ?? "Assigned"}\n\nRoom Type : ${invoice.roomType}\n\nCheck-In : ${invoice.checkIn}\n\nCheck-Out : ${invoice.checkOut}\n\nGuests : ${invoice.guests}\n\nAmount Paid : ₹${Math.round(invoice.total).toLocaleString("en-IN")}\n\nThank you for choosing SRI NIRVANA PLAZA.\n\nWe look forward to welcoming you.`;
-  const paymentMessage = `Payment Successful\n\nThank you.\n\nYour payment has been received.\n\nBooking Confirmed.\n\nInvoice Number:\n${invoice.invoiceId}`;
-  const checkInDate = new Date(invoice.checkIn);
-  const checkOutDate = new Date(invoice.checkOut);
-  const checkInReminder = new Date(checkInDate);
-  checkInReminder.setDate(checkInReminder.getDate() - 1);
-  checkInReminder.setHours(9, 0, 0, 0);
-  const sameDayCheckIn = new Date(checkInDate);
-  sameDayCheckIn.setHours(9, 0, 0, 0);
-  const checkOutReminder = new Date(checkOutDate);
-  checkOutReminder.setDate(checkOutReminder.getDate() - 1);
-  checkOutReminder.setHours(9, 0, 0, 0);
-
-  const notifications: PreviewNotification[] = [
-    { id: `${invoice.bookingId}:booking_confirmation`, bookingId: invoice.bookingId, phoneNumber, notificationType: "booking_confirmation", scheduledTime: now, sentTime: now, status: "Sent", retryCount: 0, message: confirmationMessage },
-    { id: `${invoice.bookingId}:payment_success`, bookingId: invoice.bookingId, phoneNumber, notificationType: "payment_success", scheduledTime: now, sentTime: now, status: "Sent", retryCount: 0, message: paymentMessage },
-    { id: `${invoice.bookingId}:checkin_24h`, bookingId: invoice.bookingId, phoneNumber, notificationType: "checkin_24h", scheduledTime: checkInReminder.toISOString(), status: "Pending", retryCount: 0, message: `Reminder\n\nYour stay begins tomorrow.\n\nHotel:\nSRI NIRVANA PLAZA\n\nCheck-In:\n${invoice.checkIn}\n\nRoom:\n${invoice.roomNumber ?? "Assigned"}\n\nPlease carry a valid Government ID.` },
-    { id: `${invoice.bookingId}:checkin_same_day`, bookingId: invoice.bookingId, phoneNumber, notificationType: "checkin_same_day", scheduledTime: sameDayCheckIn.toISOString(), status: "Pending", retryCount: 0, message: `Good Morning\n\nToday is your check-in day.\n\nWe are ready to welcome you.\n\nRoom:\n${invoice.roomNumber ?? "Assigned"}\n\nCheck-In Time:\n2:00 PM` },
-    { id: `${invoice.bookingId}:checkout_24h`, bookingId: invoice.bookingId, phoneNumber, notificationType: "checkout_24h", scheduledTime: checkOutReminder.toISOString(), status: "Pending", retryCount: 0, message: "Reminder\n\nYour check-out is scheduled for tomorrow.\n\nPlease contact reception if you wish to extend your stay." },
-  ];
-
-  notifications.forEach(savePreviewNotification);
-  notifications.filter((item) => item.status === "Sent").forEach((item) => savePreviewNotificationLog({
-    id: `${item.id}:log`,
-    bookingId: item.bookingId,
-    phoneNumber: item.phoneNumber,
-    messageType: item.notificationType,
-    sentAt: item.sentTime,
-    deliveryStatus: "dry_run",
-    providerResponse: { provider: "preview", message: item.message },
-  }));
-};
 
 function Page({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
@@ -318,9 +238,20 @@ function SectionHeading({ eyebrow, title, copy }: { eyebrow?: string; title: str
   );
 }
 
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+}
+
 function AppRouter() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <AppShell />
     </BrowserRouter>
   );
@@ -1224,6 +1155,7 @@ function BookingPanel({ room }: { room: Room }) {
       roomType,
       roomImage: room.images[0],
       customerEmail: user.email,
+      customerPhone: user.phone || "Not provided",
       checkIn,
       checkOut,
       guests,
@@ -2174,10 +2106,9 @@ function PaymentSuccessPage() {
         total: invoice.total,
         paymentMethod: invoice.paymentMethod,
       })
-      .then(() => setNotificationMessage("Payment success recorded. WhatsApp confirmation is scheduled automatically."))
+      .then(() => setNotificationMessage("Payment success recorded."))
       .catch(() => {
-        createPreviewWhatsAppAutomation(invoice);
-        setNotificationMessage("Preview WhatsApp automation recorded. Open Admin > Notifications to view dry-run messages. Real WhatsApp sends when backend and Meta credentials are connected.");
+        setNotificationMessage("Payment confirmation saved locally.");
       });
   }, [invoice]);
 

@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Invoice, InvoiceModal, downloadInvoice, shareInvoice, mapApiRecordToInvoice } from "../utils/invoiceHelper";
+import { Invoice, InvoiceModal, downloadInvoice, mapApiRecordToInvoice } from "../utils/invoiceHelper";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Bar, Doughnut, Line } from "react-chartjs-2";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -174,6 +174,7 @@ type PreviewCustomerBooking = {
   roomTitle: string;
   roomType: PMSRoomType;
   customerEmail: string;
+  customerPhone?: string;
   checkIn: string;
   checkOut: string;
   guests: number;
@@ -191,7 +192,7 @@ const readPreviewBookings = (): BookingRecord[] => {
       return {
         id: booking.id,
         guestName: booking.customerEmail.split("@")[0].replace(/[._-]+/g, " "),
-        phone: "Stored in customer profile",
+        phone: booking.customerPhone || "Not provided",
         email: booking.customerEmail,
         idProof: "Stored in customer profile",
         checkIn: booking.checkIn,
@@ -264,6 +265,7 @@ const mapApiHousekeeping = (row: ApiRecord): HousekeepingTask => ({
   id: asString(row.id),
   roomNumber: asString(row.roomNumber || row.room_id),
   task: asString(row.task || row.task_type, "Cleaning") as HousekeepingTask["task"],
+  priority: asString(row.priority, "Medium") as HousekeepingTask["priority"],
   assignedStaff: asString(row.assignedStaff || row.assigned_to, "Unassigned"),
   status: asString(row.status, "Pending") as HousekeepingTask["status"],
   remarks: asString(row.remarks || row.notes),
@@ -1285,63 +1287,445 @@ function SelfCheckInModule({ search }: { search: string }) {
 }
 
 function HousekeepingModule({ rows, setRows, search, notify }: { rows: HousekeepingTask[]; setRows: React.Dispatch<React.SetStateAction<HousekeepingTask[]>>; search: string; notify: (message: string) => void }) {
-  const filtered = rows.filter((row) => [row.id, row.roomNumber, row.task, row.assignedStaff].some((value) => normalize(value).includes(normalize(search))));
+  const [filter, setFilter] = useState<TaskStatus | "All">("All");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newTask, setNewTask] = useState<Partial<HousekeepingTask>>({ task: "Cleaning", priority: "Medium", status: "Pending" });
+
+  const filtered = rows.filter((row) => {
+    const matchesSearch = [row.id, row.roomNumber, row.task, row.assignedStaff].some((value) => normalize(value).includes(normalize(search)));
+    const matchesFilter = filter === "All" || row.status === filter;
+    return matchesSearch && matchesFilter;
+  });
+
   const updateStatus = (id: string, status: TaskStatus) => {
     setRows((current) => current.map((row) => row.id === id ? { ...row, status, remarks: `${row.remarks} Status updated to ${status}.` } : row));
     notify(`Housekeeping task ${id} updated.`);
   };
+
+  const handleCreateTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTask.roomNumber || !newTask.assignedStaff) {
+      notify("Please fill in room number and assigned staff.");
+      return;
+    }
+    const id = `HK-${Date.now()}`;
+    setRows((current) => [{
+      id,
+      roomNumber: newTask.roomNumber!,
+      task: (newTask.task as HousekeepingTask["task"]) || "Cleaning",
+      priority: (newTask.priority as HousekeepingTask["priority"]) || "Medium",
+      assignedStaff: newTask.assignedStaff!,
+      status: "Pending",
+      remarks: newTask.remarks || "Manually assigned",
+    }, ...current]);
+    setShowCreateModal(false);
+    setNewTask({ task: "Cleaning", priority: "Medium", status: "Pending" });
+    notify("New housekeeping task assigned.");
+  };
+
   return (
-    <AdminPanel title="Housekeeping Management">
-      <DataTable recordType="housekeeping" rows={filtered} columns={[
-        { header: "Room", render: (row) => <span className="font-black">{row.roomNumber}</span> },
-        { header: "Task", render: (row) => row.task },
-        { header: "Assigned Staff", render: (row) => row.assignedStaff },
-        { header: "Status", render: (row) => <TextBadge text={row.status} /> },
-        { header: "Remarks", render: (row) => row.remarks },
-        { header: "Actions", render: (row) => <div className="flex flex-wrap gap-2"><ActionButton onClick={() => updateStatus(row.id, "In Progress")}>Start</ActionButton><ActionButton onClick={() => updateStatus(row.id, "Completed")}>Complete</ActionButton></div> },
-      ]} />
-    </AdminPanel>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-[1.6rem] border border-white/10 bg-white/[0.07] p-5 shadow-2xl backdrop-blur-2xl">
+        <div className="flex gap-2">
+          {(["All", "Pending", "In Progress", "Completed"] as const).map((status) => (
+            <button
+              key={status}
+              onClick={() => setFilter(status)}
+              className={cn(
+                "rounded-full px-4 py-2 text-sm font-bold transition-all",
+                filter === status ? "bg-[#d2aa6a] text-black shadow-lg" : "bg-black/25 text-white hover:bg-white/10"
+              )}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="rounded-full bg-[#ff385c] px-6 py-2 text-sm font-black uppercase tracking-wider text-white shadow-xl hover:scale-105 transition-transform"
+        >
+          + New Task
+        </button>
+      </div>
+
+      <AdminPanel title="Housekeeping Management">
+        <DataTable recordType="housekeeping" rows={filtered} columns={[
+          { header: "Room", render: (row) => <span className="font-black">{row.roomNumber}</span> },
+          { header: "Task", render: (row) => row.task },
+          { header: "Priority", render: (row) => (
+            <span className={cn(
+              "rounded px-2 py-1 text-xs font-bold",
+              row.priority === "High" ? "bg-rose-500/20 text-rose-300 border border-rose-500/30" : 
+              row.priority === "Medium" ? "text-amber-300" : "text-emerald-300"
+            )}>
+              {row.priority}
+            </span>
+          )},
+          { header: "Assigned Staff", render: (row) => row.assignedStaff },
+          { header: "Status", render: (row) => <TextBadge text={row.status} /> },
+          { header: "Remarks", render: (row) => row.remarks },
+          { header: "Actions", render: (row) => (
+            <div className="flex flex-wrap gap-2">
+              {row.status === "Pending" && <ActionButton onClick={() => updateStatus(row.id, "In Progress")}>Start</ActionButton>}
+              {row.status === "In Progress" && <ActionButton onClick={() => updateStatus(row.id, "Completed")}>Complete</ActionButton>}
+            </div>
+          )},
+        ]} />
+      </AdminPanel>
+
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <form onSubmit={handleCreateTask} className="w-full max-w-md space-y-4 rounded-[2rem] border border-white/20 bg-[#1d1712] p-8 shadow-2xl">
+            <h3 className="text-xl font-bold text-white">Assign Housekeeping Task</h3>
+            
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#d2aa6a]">Room Number</label>
+              <input 
+                type="text" 
+                required
+                className={inputClass} 
+                value={newTask.roomNumber || ""} 
+                onChange={(e) => setNewTask({ ...newTask, roomNumber: e.target.value })} 
+                placeholder="e.g. 101" 
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#d2aa6a]">Task Type</label>
+                <select 
+                  className={inputClass}
+                  value={newTask.task || "Cleaning"}
+                  onChange={(e) => setNewTask({ ...newTask, task: e.target.value as any })}
+                >
+                  <option value="Cleaning">Cleaning</option>
+                  <option value="Linen Change">Linen Change</option>
+                  <option value="Restock Minibar">Restock Minibar</option>
+                  <option value="Maintenance Support">Maintenance Support</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#d2aa6a]">Priority</label>
+                <select 
+                  className={inputClass}
+                  value={newTask.priority || "Medium"}
+                  onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as Priority })}
+                >
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#d2aa6a]">Assigned Staff</label>
+              <input 
+                type="text" 
+                required
+                className={inputClass} 
+                value={newTask.assignedStaff || ""} 
+                onChange={(e) => setNewTask({ ...newTask, assignedStaff: e.target.value })} 
+                placeholder="Staff name" 
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#d2aa6a]">Remarks (Optional)</label>
+              <input 
+                type="text" 
+                className={inputClass} 
+                value={newTask.remarks || ""} 
+                onChange={(e) => setNewTask({ ...newTask, remarks: e.target.value })} 
+                placeholder="Any special instructions..." 
+              />
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 rounded-2xl bg-white/10 py-3 text-sm font-bold text-white hover:bg-white/20">Cancel</button>
+              <button type="submit" className="flex-1 rounded-2xl bg-[#d2aa6a] py-3 text-sm font-bold text-black shadow-lg hover:bg-[#e3bb7b]">Assign Task</button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
   );
 }
 
 function RoomServiceModule({ rows, setRows, search, notify }: { rows: ServiceRequest[]; setRows: React.Dispatch<React.SetStateAction<ServiceRequest[]>>; search: string; notify: (message: string) => void }) {
-  const filtered = rows.filter((row) => [row.id, row.guestName, row.roomNumber, row.requestType].some((value) => normalize(value).includes(normalize(search))));
+  const [filter, setFilter] = useState<TaskStatus | "All">("All");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newOrder, setNewOrder] = useState<Partial<ServiceRequest>>({ requestType: "Food Orders" });
+
+  const filtered = rows.filter((row) => {
+    const matchesSearch = [row.id, row.guestName, row.roomNumber, row.requestType].some((value) => normalize(value).includes(normalize(search)));
+    const matchesFilter = filter === "All" || row.status === filter;
+    return matchesSearch && matchesFilter;
+  });
+
   const updateStatus = (id: string, status: TaskStatus) => {
     setRows((current) => current.map((row) => row.id === id ? { ...row, status } : row));
-    notify(`Room service request ${id} updated.`);
+    notify(`Room service request ${id} updated to ${status}.`);
   };
+
+  const handleCreateOrder = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newOrder.roomNumber || !newOrder.guestName) {
+      notify("Please fill in room number and guest name.");
+      return;
+    }
+    const id = `RS-${Date.now()}`;
+    setRows((current) => [{
+      id,
+      guestName: newOrder.guestName!,
+      roomNumber: newOrder.roomNumber!,
+      requestType: (newOrder.requestType as ServiceRequest["requestType"]) || "Food Orders",
+      requestTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: "Pending",
+    }, ...current]);
+    setShowCreateModal(false);
+    setNewOrder({ requestType: "Food Orders" });
+    notify("New room service order added.");
+  };
+
   return (
-    <AdminPanel title="Room Service Management">
-      <DataTable recordType="room-service" rows={filtered} columns={[
-        { header: "Guest", render: (row) => <span className="font-black">{row.guestName}</span> },
-        { header: "Room", render: (row) => row.roomNumber },
-        { header: "Request Type", render: (row) => row.requestType },
-        { header: "Request Time", render: (row) => row.requestTime },
-        { header: "Status", render: (row) => <TextBadge text={row.status} /> },
-        { header: "Actions", render: (row) => <div className="flex flex-wrap gap-2"><ActionButton onClick={() => updateStatus(row.id, "In Progress")}>Assign</ActionButton><ActionButton onClick={() => updateStatus(row.id, "Completed")}>Complete</ActionButton></div> },
-      ]} />
-    </AdminPanel>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-[1.6rem] border border-white/10 bg-white/[0.07] p-5 shadow-2xl backdrop-blur-2xl">
+        <div className="flex gap-2">
+          {(["All", "Pending", "In Progress", "Completed"] as const).map((status) => (
+            <button
+              key={status}
+              onClick={() => setFilter(status)}
+              className={cn(
+                "rounded-full px-4 py-2 text-sm font-bold transition-all",
+                filter === status ? "bg-[#d2aa6a] text-black shadow-lg" : "bg-black/25 text-white hover:bg-white/10"
+              )}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="rounded-full bg-[#ff385c] px-6 py-2 text-sm font-black uppercase tracking-wider text-white shadow-xl hover:scale-105 transition-transform"
+        >
+          + New Order
+        </button>
+      </div>
+
+      <AdminPanel title="Room Service Management">
+        <DataTable recordType="room-service" rows={filtered} columns={[
+          { header: "Guest", render: (row) => <span className="font-black">{row.guestName}</span> },
+          { header: "Room", render: (row) => row.roomNumber },
+          { header: "Request Type", render: (row) => row.requestType },
+          { header: "Request Time", render: (row) => row.requestTime },
+          { header: "Status", render: (row) => <TextBadge text={row.status} /> },
+          { header: "Actions", render: (row) => (
+            <div className="flex flex-wrap gap-2">
+              {row.status === "Pending" && <ActionButton onClick={() => updateStatus(row.id, "In Progress")}>Assign</ActionButton>}
+              {row.status === "In Progress" && <ActionButton onClick={() => updateStatus(row.id, "Completed")}>Complete</ActionButton>}
+            </div>
+          )},
+        ]} />
+      </AdminPanel>
+
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <form onSubmit={handleCreateOrder} className="w-full max-w-md space-y-4 rounded-[2rem] border border-white/20 bg-[#1d1712] p-8 shadow-2xl">
+            <h3 className="text-xl font-bold text-white">New Room Service Order</h3>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#d2aa6a]">Room Number</label>
+                <input 
+                  type="text" 
+                  required
+                  className={inputClass} 
+                  value={newOrder.roomNumber || ""} 
+                  onChange={(e) => setNewOrder({ ...newOrder, roomNumber: e.target.value })} 
+                  placeholder="e.g. 101" 
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#d2aa6a]">Guest Name</label>
+                <input 
+                  type="text" 
+                  required
+                  className={inputClass} 
+                  value={newOrder.guestName || ""} 
+                  onChange={(e) => setNewOrder({ ...newOrder, guestName: e.target.value })} 
+                  placeholder="Guest name" 
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#d2aa6a]">Request Type</label>
+              <select 
+                className={inputClass}
+                value={newOrder.requestType || "Food Orders"}
+                onChange={(e) => setNewOrder({ ...newOrder, requestType: e.target.value as any })}
+              >
+                <option value="Food Orders">Food Orders</option>
+                <option value="Laundry">Laundry</option>
+                <option value="Water Bottles">Water Bottles</option>
+                <option value="Extra Towels">Extra Towels</option>
+                <option value="Amenities">Amenities</option>
+              </select>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 rounded-2xl bg-white/10 py-3 text-sm font-bold text-white hover:bg-white/20">Cancel</button>
+              <button type="submit" className="flex-1 rounded-2xl bg-[#d2aa6a] py-3 text-sm font-bold text-black shadow-lg hover:bg-[#e3bb7b]">Submit Order</button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
   );
 }
 
 function ComplaintsModule({ rows, setRows, search, notify }: { rows: ComplaintRecord[]; setRows: React.Dispatch<React.SetStateAction<ComplaintRecord[]>>; search: string; notify: (message: string) => void }) {
-  const filtered = rows.filter((row) => [row.id, row.guestName, row.roomNumber, row.description].some((value) => normalize(value).includes(normalize(search))));
+  const [filter, setFilter] = useState<ComplaintRecord["status"] | "All">("All");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newComplaint, setNewComplaint] = useState<Partial<ComplaintRecord>>({ priority: "Medium", status: "Open" });
+
+  const filtered = rows.filter((row) => {
+    const matchesSearch = [row.id, row.guestName, row.roomNumber, row.description].some((value) => normalize(value).includes(normalize(search)));
+    const matchesFilter = filter === "All" || row.status === filter;
+    return matchesSearch && matchesFilter;
+  });
+
   const setStatus = (id: string, status: "Open" | "Under Review" | "Resolved") => {
     setRows((current) => current.map((row) => row.id === id ? { ...row, status } : row));
     notify(`Complaint ${id} updated to ${status}.`);
   };
+
+  const handleCreateComplaint = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComplaint.roomNumber || !newComplaint.guestName || !newComplaint.description) {
+      notify("Please fill in room number, guest name, and description.");
+      return;
+    }
+    const id = `CMP-${Date.now()}`;
+    setRows((current) => [{
+      id,
+      guestName: newComplaint.guestName!,
+      roomNumber: newComplaint.roomNumber!,
+      description: newComplaint.description!,
+      priority: (newComplaint.priority as Priority) || "Medium",
+      status: "Open",
+    }, ...current]);
+    setShowCreateModal(false);
+    setNewComplaint({ priority: "Medium", status: "Open" });
+    notify("New complaint logged successfully.");
+  };
+
   return (
-    <AdminPanel title="Complaint Management">
-      <DataTable recordType="complaints" rows={filtered} columns={[
-        { header: "Complaint ID", render: (row) => <span className="font-black">{row.id}</span> },
-        { header: "Guest", render: (row) => row.guestName },
-        { header: "Room", render: (row) => row.roomNumber },
-        { header: "Description", render: (row) => row.description },
-        { header: "Priority", render: (row) => <PriorityBadge priority={row.priority} /> },
-        { header: "Status", render: (row) => <TextBadge text={row.status} /> },
-        { header: "Actions", render: (row) => <div className="flex flex-wrap gap-2"><ActionButton onClick={() => setStatus(row.id, "Under Review")}>Review</ActionButton><ActionButton onClick={() => setStatus(row.id, "Resolved")}>Resolve</ActionButton></div> },
-      ]} />
-    </AdminPanel>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-[1.6rem] border border-white/10 bg-white/[0.07] p-5 shadow-2xl backdrop-blur-2xl">
+        <div className="flex gap-2">
+          {(["All", "Open", "Under Review", "Resolved"] as const).map((status) => (
+            <button
+              key={status}
+              onClick={() => setFilter(status)}
+              className={cn(
+                "rounded-full px-4 py-2 text-sm font-bold transition-all",
+                filter === status ? "bg-[#d2aa6a] text-black shadow-lg" : "bg-black/25 text-white hover:bg-white/10"
+              )}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="rounded-full bg-[#ff385c] px-6 py-2 text-sm font-black uppercase tracking-wider text-white shadow-xl hover:scale-105 transition-transform"
+        >
+          + Log Complaint
+        </button>
+      </div>
+
+      <AdminPanel title="Complaint Management">
+        <DataTable recordType="complaints" rows={filtered} columns={[
+          { header: "Complaint ID", render: (row) => <span className="font-black">{row.id}</span> },
+          { header: "Guest", render: (row) => row.guestName },
+          { header: "Room", render: (row) => row.roomNumber },
+          { header: "Description", render: (row) => row.description },
+          { header: "Priority", render: (row) => <PriorityBadge priority={row.priority} /> },
+          { header: "Status", render: (row) => <TextBadge text={row.status} /> },
+          { header: "Actions", render: (row) => (
+            <div className="flex flex-wrap gap-2">
+              {row.status === "Open" && <ActionButton onClick={() => setStatus(row.id, "Under Review")}>Review</ActionButton>}
+              {row.status === "Under Review" && <ActionButton onClick={() => setStatus(row.id, "Resolved")}>Resolve</ActionButton>}
+            </div>
+          )},
+        ]} />
+      </AdminPanel>
+
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <form onSubmit={handleCreateComplaint} className="w-full max-w-md space-y-4 rounded-[2rem] border border-white/20 bg-[#1d1712] p-8 shadow-2xl">
+            <h3 className="text-xl font-bold text-white">Log Guest Complaint</h3>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#d2aa6a]">Room Number</label>
+                <input 
+                  type="text" 
+                  required
+                  className={inputClass} 
+                  value={newComplaint.roomNumber || ""} 
+                  onChange={(e) => setNewComplaint({ ...newComplaint, roomNumber: e.target.value })} 
+                  placeholder="e.g. 101" 
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#d2aa6a]">Guest Name</label>
+                <input 
+                  type="text" 
+                  required
+                  className={inputClass} 
+                  value={newComplaint.guestName || ""} 
+                  onChange={(e) => setNewComplaint({ ...newComplaint, guestName: e.target.value })} 
+                  placeholder="Guest name" 
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#d2aa6a]">Description</label>
+              <textarea 
+                required
+                rows={3}
+                className={inputClass} 
+                value={newComplaint.description || ""} 
+                onChange={(e) => setNewComplaint({ ...newComplaint, description: e.target.value })} 
+                placeholder="Describe the issue..." 
+              />
+            </div>
+            
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#d2aa6a]">Priority</label>
+              <select 
+                className={inputClass}
+                value={newComplaint.priority || "Medium"}
+                onChange={(e) => setNewComplaint({ ...newComplaint, priority: e.target.value as Priority })}
+              >
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+              </select>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 rounded-2xl bg-white/10 py-3 text-sm font-bold text-white hover:bg-white/20">Cancel</button>
+              <button type="submit" className="flex-1 rounded-2xl bg-[#d2aa6a] py-3 text-sm font-bold text-black shadow-lg hover:bg-[#e3bb7b]">Log Complaint</button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1434,7 +1818,7 @@ function InvoicesModule({ rows, search, notify }: { rows: AdminInvoice[]; search
   const handleRegenerate = async (bookingId: string) => {
     try {
       notify("Regenerating invoice in Firestore...");
-      const response = await apiClient.post(`/bookings/${bookingId}/invoice?force=true`, {});
+      await apiClient.post(`/bookings/${bookingId}/invoice?force=true`, {});
       notify("Invoice successfully recalculated and updated in Firestore.");
       window.setTimeout(() => window.location.reload(), 1500);
     } catch (err: any) {

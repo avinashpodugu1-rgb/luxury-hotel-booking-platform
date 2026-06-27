@@ -82,7 +82,8 @@ export type SelfCheckIn = {
 export type HousekeepingTask = {
   id: string;
   roomNumber: string;
-  task: "Cleaning" | "Linen Change" | "Maintenance Support";
+  task: "Cleaning" | "Linen Change" | "Maintenance Support" | "Restock Minibar";
+  priority: Priority;
   assignedStaff: string;
   status: TaskStatus;
   remarks: string;
@@ -397,11 +398,11 @@ export const selfCheckIns: SelfCheckIn[] = [
 ];
 
 export const housekeepingTasks: HousekeepingTask[] = [
-  { id: "HK-9001", roomNumber: "101", task: "Cleaning", assignedStaff: "Latha P", status: "Pending", remarks: "Arrival clean required by 13:30" },
-  { id: "HK-9002", roomNumber: "201", task: "Linen Change", assignedStaff: "Suresh N", status: "In Progress", remarks: "VIP linen and pillow menu" },
-  { id: "HK-9003", roomNumber: "303", task: "Cleaning", assignedStaff: "Kavya S", status: "Completed", remarks: "Family amenity kit placed" },
-  { id: "HK-9004", roomNumber: "404", task: "Maintenance Support", assignedStaff: "Ravi Kumar", status: "In Progress", remarks: "Support plumbing inspection" },
-  { id: "HK-9005", roomNumber: "502", task: "Linen Change", assignedStaff: "Meera Das", status: "Pending", remarks: "Presidential setup" },
+  { id: "HK-9001", roomNumber: "101", task: "Cleaning", assignedStaff: "Latha P", status: "Pending", remarks: "Arrival clean required by 13:30", priority: "Medium" },
+  { id: "HK-9002", roomNumber: "201", task: "Linen Change", assignedStaff: "Suresh N", status: "In Progress", remarks: "VIP linen and pillow menu", priority: "Low" },
+  { id: "HK-9003", roomNumber: "303", task: "Cleaning", assignedStaff: "Kavya S", status: "Completed", remarks: "Family amenity kit placed", priority: "Low" },
+  { id: "HK-9004", roomNumber: "404", task: "Maintenance Support", assignedStaff: "Ravi Kumar", status: "In Progress", remarks: "Support plumbing inspection", priority: "High" },
+  { id: "HK-9005", roomNumber: "502", task: "Linen Change", assignedStaff: "Meera Das", status: "Pending", remarks: "Presidential setup", priority: "High" },
 ];
 
 export const serviceRequests: ServiceRequest[] = [
