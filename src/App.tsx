@@ -87,11 +87,6 @@ type IconName = keyof typeof iconPaths;
 type PaymentMethod = "UPI" | "Card";
 
 
-  theme: { color: string };
-};
-
-
-
 function Icon({ name, className = "" }: { name: IconName; className?: string }) {
   return (
     <svg

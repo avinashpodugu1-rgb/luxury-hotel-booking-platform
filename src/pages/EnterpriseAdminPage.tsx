@@ -84,27 +84,6 @@ type AdminGuestDetail = { name: string; age: string; gender: string; idProof: st
 
 const emptyAdminGuest = (index: number): AdminGuestDetail => ({ name: index === 0 ? "Primary Guest" : "", age: "", gender: "", idProof: "" });
 
-type AdminNotification = {
-  id: string;
-  bookingId?: string;
-  phoneNumber?: string;
-  notificationType?: string;
-  scheduledTime?: string;
-  sentTime?: string;
-  status: "Pending" | "Sent" | "Cancelled" | "Failed";
-  retryCount?: number;
-  message: string;
-};
-
-type NotificationLog = {
-  id: string;
-  bookingId?: string;
-  phoneNumber?: string;
-  messageType?: string;
-  sentAt?: string;
-  deliveryStatus?: string;
-  providerResponse?: Record<string, unknown>;
-};
 
 type AdminInvoice = {
   id: string;
@@ -329,27 +308,7 @@ const mapApiBlock = (row: ApiRecord): MaintenanceBlock => ({
   status: asString(row.status, "Active") as MaintenanceBlock["status"],
 });
 
-const mapApiNotification = (row: ApiRecord): AdminNotification => ({
-  id: asString(row.id || row.notificationId),
-  bookingId: asString(row.bookingId),
-  phoneNumber: asString(row.phoneNumber),
-  notificationType: asString(row.notificationType),
-  scheduledTime: asString(row.scheduledTime),
-  sentTime: asString(row.sentTime),
-  status: asString(row.status, "Pending") as AdminNotification["status"],
-  retryCount: asNumber(row.retryCount, 0),
-  message: asString(row.message),
-});
 
-const mapApiNotificationLog = (row: ApiRecord): NotificationLog => ({
-  id: asString(row.id),
-  bookingId: asString(row.bookingId),
-  phoneNumber: asString(row.phoneNumber),
-  messageType: asString(row.messageType),
-  sentAt: asString(row.sentAt),
-  deliveryStatus: asString(row.deliveryStatus),
-  providerResponse: (row.providerResponse || {}) as Record<string, unknown>,
-});
 
 const mapApiInvoice = (row: ApiRecord): AdminInvoice => {
   const booking = (row.booking || {}) as ApiRecord;
@@ -483,8 +442,6 @@ export default function EnterpriseAdminPage() {
   const [complaintsState, setComplaintsState] = useState<ComplaintRecord[]>(complaintRecords.slice(0, 0));
   const [feedbackState, setFeedbackState] = useState<FeedbackRecord[]>(feedbackRecords.slice(0, 0));
   const [paymentsState, setPaymentsState] = useState<PaymentRecord[]>(paymentRecords.slice(0, 0));
-  const [notificationRows, setNotificationRows] = useState<AdminNotification[]>([]);
-  const [notificationLogs, setNotificationLogs] = useState<NotificationLog[]>([]);
   const [invoiceRows, setInvoiceRows] = useState<AdminInvoice[]>([]);
 
   const kpis = useMemo(() => buildKpis(roomsState, bookingsState, blocksState), [roomsState, bookingsState, blocksState]);
@@ -499,7 +456,7 @@ export default function EnterpriseAdminPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const [roomsRes, bookingsRes, corporateRes, housekeepingRes, serviceRes, complaintsRes, feedbackRes, gstRes, blocksRes, notificationsRes, logsRes, invoicesRes] = await Promise.all([
+        const [roomsRes, bookingsRes, corporateRes, housekeepingRes, serviceRes, complaintsRes, feedbackRes, gstRes, blocksRes, invoicesRes] = await Promise.all([
           apiClient.get("/rooms"),
           apiClient.get("/bookings"),
           apiClient.get("/corporate_bookings"),
@@ -509,8 +466,6 @@ export default function EnterpriseAdminPage() {
           apiClient.get("/feedback"),
           apiClient.get("/gst_entries"),
           apiClient.get("/maintenance_blocks"),
-          apiClient.get("/notifications"),
-          apiClient.get("/notification_logs"),
           apiClient.get("/invoices"),
         ]);
         if (!mounted) return;
@@ -526,9 +481,8 @@ export default function EnterpriseAdminPage() {
         setFeedbackState((feedbackRes.data.feedback ?? []).map(mapApiFeedback));
         setPaymentsState((gstRes.data.gst_entries ?? []).map(mapApiPayment));
         setBlocksState((blocksRes.data.maintenance_blocks ?? []).map(mapApiBlock));
-        setNotificationRows((notificationsRes.data.notifications ?? []).map(mapApiNotification));
-        setNotificationLogs((logsRes.data.notification_logs ?? []).map(mapApiNotificationLog));
         setInvoiceRows((invoicesRes.data.invoices ?? []).map(mapApiInvoice));
+
       } catch {
         if (!mounted) return;
         setRoomsState(pmsRooms);
@@ -540,8 +494,6 @@ export default function EnterpriseAdminPage() {
         setFeedbackState([]);
         setPaymentsState([]);
         setBlocksState([]);
-        setNotificationRows([]);
-        setNotificationLogs([]);
         setInvoiceRows([]);
       } finally {
         if (mounted) setLoading(false);
@@ -669,7 +621,7 @@ export default function EnterpriseAdminPage() {
             </AnimatePresence>
           </div>
 
-          {moduleContent[activeModule]}
+          {renderModule()}
           {loading ? <div className="mt-6 rounded-2xl border border-white/10 bg-white/8 p-4 text-sm font-bold text-[#c8b8a3]">Loading live Firestore data...</div> : null}
         </section>
       </div>
