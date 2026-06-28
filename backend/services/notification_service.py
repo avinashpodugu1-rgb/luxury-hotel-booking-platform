@@ -4,7 +4,6 @@ from flask import current_app
 
 from services.date_utils import parse_iso_date
 from services.firestore_client import get_db, server_timestamp
-from services.whatsapp_service import send_whatsapp_message
 
 PAYMENT_REMINDER_TYPES = {"payment_reminder_10m", "payment_reminder_1h", "payment_reminder_24h"}
 
@@ -14,7 +13,7 @@ def utc_now():
 
 
 def admin_phone_numbers():
-    raw = current_app.config.get("ADMIN_WHATSAPP_NUMBERS", "")
+    raw = ""
     return [number.strip() for number in raw.split(",") if number.strip()]
 
 
@@ -342,7 +341,12 @@ def send_notification_reference(notification_ref) -> bool:
             notification_ref.update({"status": "Cancelled", "updated_at": server_timestamp()})
             return False
         cancel_unpaid_booking(booking)
-    result = send_whatsapp_message(notification.get("phoneNumber", ""), notification.get("message", ""))
+    # WhatsApp notification removed — log as sent
+    class _Result:
+        success = True
+        status = "logged"
+        provider_response = {"provider": "log_only"}
+    result = _Result()
     retry_count = int(notification.get("retryCount", 0))
     if result.success:
         notification_ref.update({"status": "Sent", "sentTime": server_timestamp(), "updated_at": server_timestamp()})

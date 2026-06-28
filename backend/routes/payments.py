@@ -5,7 +5,7 @@ from services.firestore_client import get_db, server_timestamp
 from services.gst_service import create_gst_entry
 from services.invoice_service import create_invoice_for_booking
 from services.notification_service import handle_payment_success
-from services.payment_service import create_razorpay_order
+from services.payment_service import create_payment_order
 from services.automation_service import AutomationService
 
 payments_bp = Blueprint("payments", __name__)
@@ -18,11 +18,11 @@ def create_payment_order():
     if amount <= 0:
         return jsonify({"message": "Payment amount is required"}), 400
     invoice = payload.get("invoiceId") or payload.get("invoice_number") or f"SNP-PAY-{int(amount)}"
-    order = create_razorpay_order(amount, invoice)
+    order = create_payment_order(amount, invoice)
     ref = get_db().collection("payments").document()
     payment = {
         "booking_id": payload.get("bookingId") or payload.get("booking_id"),
-        "provider": payload.get("paymentMethod") or "Razorpay",
+        "provider": payload.get("paymentMethod") or "UPI",
         "provider_order_id": order.get("id"),
         "invoice_number": invoice,
         "amount": amount,
@@ -32,33 +32,6 @@ def create_payment_order():
     ref.set(payment)
     payment["id"] = ref.id
     return jsonify({"order": order, "payment": payment}), 201
-
-
-@payments_bp.post("/payments/verify")
-def verify_payment():
-    payload = request.get_json() or {}
-    matches = list(get_db().collection("payments").where("provider_order_id", "==", payload.get("razorpay_order_id")).limit(1).stream())
-    if not matches:
-        return jsonify({"message": "Payment not found"}), 404
-    ref = matches[0].reference
-    data = matches[0].to_dict() or {}
-    invoice_number = data.get("invoice_number") or payload.get("invoice_number") or ""
-    booking_id = data.get("booking_id") or payload.get("bookingId") or payload.get("booking_id")
-    ref.update({"provider_payment_id": payload.get("razorpay_payment_id"), "status": "paid", "updated_at": server_timestamp()})
-    if booking_id:
-        booking = handle_payment_success(str(booking_id), invoice_number)
-        AutomationService.trigger_event("payment_successful", {
-            "booking_id": str(booking_id),
-            "invoice_number": invoice_number or f"SNP-{str(booking_id)[:8].upper()}",
-            "id": ref.id
-        })
-        try:
-            create_invoice_for_booking(str(booking_id), ref.id, invoice_number)
-        except Exception as e:
-            print(f"Failed to auto-generate invoice: {e}")
-    data = ref.get().to_dict() or {}
-    data["id"] = ref.id
-    return jsonify({"payment": data})
 
 
 @payments_bp.post("/payments/success")
@@ -204,21 +177,7 @@ def cancel_booking_with_refund(booking_id: str):
         "created_at": server_timestamp(),
     }
 
-    # Attempt Razorpay refund if payment exists
-    payment_id_for_refund = booking.get("razorpay_payment_id") or payload.get("razorpay_payment_id")
-    if refund_amount > 0 and payment_id_for_refund:
-        try:
-            import razorpay
-            import os
-            client = razorpay.Client(auth=(os.getenv("RAZORPAY_KEY_ID", ""), os.getenv("RAZORPAY_KEY_SECRET", "")))
-            rzp_refund = client.payment.refund(payment_id_for_refund, {"amount": int(refund_amount * 100)})
-            refund_data["razorpayRefundId"] = rzp_refund.get("id")
-            refund_data["status"] = "processed"
-        except Exception as exc:
-            print(f"[REFUND] Razorpay refund failed (manual processing needed): {exc}")
-            refund_data["status"] = "manual_required"
-            refund_data["error"] = str(exc)
-
+    # Refund will be processed manually
     refund_ref.set(refund_data)
 
     # Trigger cancellation automation (releases room, sends notifications)

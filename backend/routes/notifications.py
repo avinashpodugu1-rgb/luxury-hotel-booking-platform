@@ -3,7 +3,6 @@ from flask_jwt_extended import jwt_required
 
 from services.firestore_client import get_db, server_timestamp
 from services.notification_service import send_notification_reference
-from services.whatsapp_service import send_whatsapp_message
 
 notifications_bp = Blueprint("notifications", __name__)
 
@@ -53,26 +52,3 @@ def resend_notification(notification_id):
     data = ref.get().to_dict() or {}
     data["id"] = ref.id
     return jsonify({"notification": data})
-
-
-@notifications_bp.post("/notifications/test-whatsapp")
-@jwt_required(optional=True)
-def test_whatsapp():
-    payload = request.get_json() or {}
-    phone_number = payload.get("phoneNumber") or payload.get("phone")
-    if not phone_number:
-        return jsonify({"message": "phoneNumber is required"}), 400
-    message = payload.get("message") or "SRI NIRVANA PLAZA WhatsApp connection test successful."
-    result = send_whatsapp_message(phone_number, message)
-    get_db().collection("notification_logs").document().set(
-        {
-            "bookingId": "test",
-            "phoneNumber": phone_number,
-            "messageType": "whatsapp_test",
-            "sentAt": server_timestamp(),
-            "deliveryStatus": result.status,
-            "providerResponse": result.provider_response,
-            "message": message,
-        }
-    )
-    return jsonify({"success": result.success, "status": result.status, "providerResponse": result.provider_response})

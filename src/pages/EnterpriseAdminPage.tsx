@@ -146,7 +146,7 @@ const adminModules: Array<{ key: AdminModule; label: string; group: string }> = 
   { key: "invoices", label: "Invoices", group: "Finance" },
   { key: "revenue", label: "Revenue Analytics", group: "Finance" },
   { key: "ai", label: "AI Center", group: "Intelligence" },
-  { key: "notifications", label: "Notifications", group: "Intelligence" },
+  
   { key: "history", label: "Action History", group: "Intelligence" },
   { key: "automation", label: "Automation Engine", group: "Intelligence" },
   { key: "reports", label: "Reports", group: "Exports" },
@@ -576,7 +576,7 @@ export default function EnterpriseAdminPage() {
       case "invoices": return <InvoicesModule rows={invoiceRows} search={search} notify={notify} />;
       case "revenue": return <RevenueModule />;
       case "ai": return <AiModule />;
-      case "notifications": return <NotificationsModule rows={notificationRows} logs={notificationLogs} search={search} notify={notify} setRows={setNotificationRows} />;
+      
       case "history": return <HistoryModule search={search} />;
       case "reports": return <ReportsModule notify={notify} />;
       case "maintenance": return <MaintenanceModule rooms={roomsState} setRooms={setRoomsState} blocks={blocksState} setBlocks={setBlocksState} notify={notify} search={search} />;
@@ -2156,7 +2156,7 @@ function InvoicesModule({ rows, search, notify }: { rows: AdminInvoice[]; search
               <ActionButton onClick={() => handleDownload(row)}>PDF</ActionButton>
               <ActionButton onClick={handlePrint}>Print</ActionButton>
               <ActionButton onClick={() => handleEmail(row)}>Email</ActionButton>
-              <ActionButton onClick={() => { window.open(`https://wa.me/?text=Here is your invoice for booking ${row.bookingId}. Download PDF at: ${window.location.origin}/invoice/${row.id}`, '_blank'); }}>WhatsApp</ActionButton>
+              
               <ActionButton onClick={() => handleRegenerate(row.bookingId)}>Regenerate</ActionButton>
               {row.invoiceStatus !== "Cancelled" && <ActionButton onClick={() => handleCancel(row)}>Cancel</ActionButton>}
             </div> },
@@ -2244,72 +2244,6 @@ function AiModule() {
           <p className="mt-3 text-lg font-bold leading-7 text-white">{item}</p>
         </motion.div>
       ))}
-    </div>
-  );
-}
-
-function NotificationsModule({ rows, logs, search, notify, setRows }: { rows: AdminNotification[]; logs: NotificationLog[]; search: string; notify: (message: string) => void; setRows: React.Dispatch<React.SetStateAction<AdminNotification[]>> }) {
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [selectedNotification, setSelectedNotification] = useState<AdminNotification | null>(null);
-  const filteredRows = rows.filter((row) => {
-    const matchesStatus = statusFilter === "All" || row.status === statusFilter;
-    const matchesSearch = [row.id, row.bookingId, row.phoneNumber, row.notificationType, row.message].some((value) => normalize(value).includes(normalize(search)));
-    return matchesStatus && matchesSearch;
-  });
-  const counts = [
-    ["Pending Notifications", rows.filter((row) => row.status === "Pending").length],
-    ["Sent Notifications", rows.filter((row) => row.status === "Sent").length],
-    ["Failed Notifications", rows.filter((row) => row.status === "Failed").length],
-    ["Cancelled Notifications", rows.filter((row) => row.status === "Cancelled").length],
-  ];
-
-  const resend = (notification: AdminNotification) => {
-    void apiClient.post(`/notifications/${notification.id}/resend`).catch(() => undefined);
-    setRows((current) => current.map((row) => row.id === notification.id ? { ...row, status: "Pending", retryCount: 0 } : row));
-    notify(`Notification ${notification.id} queued for resend.`);
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
-        {counts.map(([label, value], index) => <KpiCard key={label} label={String(label)} value={value} index={index} />)}
-      </div>
-      <AdminPanel title="WhatsApp Notification Dashboard" action={<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-full border border-white/10 bg-black/25 px-3 py-2 text-xs font-bold text-white"><option>All</option><option>Pending</option><option>Sent</option><option>Failed</option><option>Cancelled</option></select>}>
-        <DataTable
-          recordType="notifications"
-          rows={filteredRows}
-          columns={[
-            { header: "Type", render: (row) => <span className="font-black">{row.notificationType}</span> },
-            { header: "Booking", render: (row) => row.bookingId || "Admin" },
-            { header: "Phone", render: (row) => row.phoneNumber || "Not set" },
-            { header: "Status", render: (row) => <TextBadge text={row.status} /> },
-            { header: "Retries", render: (row) => row.retryCount ?? 0 },
-            { header: "Actions", render: (row) => <div className="flex flex-wrap gap-2"><ActionButton onClick={() => setSelectedNotification(row)}>View Details</ActionButton><ActionButton onClick={() => resend(row)}>Resend</ActionButton></div> },
-          ]}
-        />
-      </AdminPanel>
-      {selectedNotification ? (
-        <AdminPanel title="Notification Details" action={<button type="button" onClick={() => setSelectedNotification(null)} className="rounded-full bg-white/10 px-4 py-2 text-xs font-black text-white">Close</button>}>
-          <div className="grid gap-4 md:grid-cols-3">
-            <DetailMetric label="Notification ID" value={selectedNotification.id} />
-            <DetailMetric label="Booking ID" value={selectedNotification.bookingId || "Admin"} />
-            <DetailMetric label="Status" value={selectedNotification.status} />
-          </div>
-          <p className="mt-5 whitespace-pre-wrap rounded-2xl bg-white/8 p-4 text-sm font-semibold leading-6 text-[#c8b8a3]">{selectedNotification.message}</p>
-        </AdminPanel>
-      ) : null}
-      <AdminPanel title="Notification Logs">
-        <DataTable
-          recordType="notification_logs"
-          rows={logs}
-          columns={[
-            { header: "Type", render: (row) => row.messageType || "Notification" },
-            { header: "Booking", render: (row) => row.bookingId || "Admin" },
-            { header: "Phone", render: (row) => row.phoneNumber || "Not set" },
-            { header: "Delivery", render: (row) => <TextBadge text={row.deliveryStatus || "logged"} /> },
-          ]}
-        />
-      </AdminPanel>
     </div>
   );
 }

@@ -84,16 +84,9 @@ const iconPaths = {
 };
 
 type IconName = keyof typeof iconPaths;
-type PaymentMethod = "Razorpay" | "UPI" | "Card";
+type PaymentMethod = "UPI" | "Card";
 
-type RazorpayOptions = {
-  key: string;
-  amount: number;
-  currency: "INR";
-  name: string;
-  description: string;
-  handler: () => void;
-  prefill: { name: string; email: string };
+
   theme: { color: string };
 };
 
@@ -1007,7 +1000,7 @@ function BookingPanel({ room }: { room: Room }) {
   const [checkOut, setCheckOut] = useState(pendingBooking?.checkOut ?? isoAfter(3));
   const [guests, setGuests] = useState(pendingBooking?.guests ?? 1);
   const [roomType, setRoomType] = useState<RoomCategory>(pendingBooking?.roomType ?? room.category);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(pendingBooking?.paymentMethod ?? "Razorpay");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(pendingBooking?.paymentMethod ?? "UPI");
   const [guestDetails, setGuestDetails] = useState<GuestDetail[]>(() =>
     Array.from({ length: Math.min(pendingBooking?.guests ?? 1, room.guests) }, (_, index) => emptyGuestDetail(index)),
   );
@@ -1130,7 +1123,7 @@ function BookingPanel({ room }: { room: Room }) {
       total: createdBooking?.total_amount ?? total,
       paymentMethod,
       transactionId: confirmedBookingId,
-      gateway: paymentMethod === "Razorpay" ? "Razorpay" : paymentMethod,
+      gateway: paymentMethod,
       paymentStatus: "Paid",
       invoiceStatus: "Issued",
       bookingSource: "Website",
@@ -1157,22 +1150,6 @@ function BookingPanel({ room }: { room: Room }) {
     });
     sessionStorage.setItem("nirvana-invoice", JSON.stringify(summary));
     sessionStorage.removeItem("nirvana-pending-booking");
-    void apiClient.post("/payments/create-order", summary).catch(() => undefined);
-
-    const Razorpay = (window as unknown as { Razorpay?: new (options: RazorpayOptions) => { open: () => void } }).Razorpay;
-    if (paymentMethod === "Razorpay" && Razorpay) {
-      new Razorpay({
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_demo",
-        amount: summary.total * 100,
-        currency: "INR",
-        name: "SRI NIRVANA PLAZA",
-        description: `Reservation for ${room.title}`,
-        handler: () => navigate("/payment-success"),
-        prefill: { name: user?.name ?? "Nirvana Guest", email: user?.email ?? "guest@nirvanaplaza.com" },
-        theme: { color: "#b88945" },
-      }).open();
-      return;
-    }
     navigate("/payment-success");
   };
 
@@ -1260,7 +1237,7 @@ function BookingPanel({ room }: { room: Room }) {
       </div>
 
       <div className="mt-5 grid grid-cols-3 gap-2">
-        {(["Razorpay", "UPI", "Card"] as PaymentMethod[]).map((method) => (
+        {(["UPI", "Card"] as PaymentMethod[]).map((method) => (
           <button
             key={method}
             type="button"
@@ -1295,7 +1272,7 @@ function BookingPanel({ room }: { room: Room }) {
       </motion.button>
       {authNotice ? <p className="mt-3 rounded-2xl bg-[var(--surface-soft)] px-4 py-3 text-center text-xs font-black text-[var(--gold)]">{authNotice}</p> : null}
       {bookingError ? <p className="mt-3 rounded-2xl bg-rose-500/10 px-4 py-3 text-center text-xs font-black text-rose-500">{bookingError}</p> : null}
-      <p className="mt-3 text-center text-xs font-semibold text-[var(--muted)]">Payment supports Razorpay, UPI, credit card, and debit card flows.</p>
+      <p className="mt-3 text-center text-xs font-semibold text-[var(--muted)]">Payment supports UPI, credit card, and debit card flows.</p>
     </motion.aside>
   );
 }

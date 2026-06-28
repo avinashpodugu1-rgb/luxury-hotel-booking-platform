@@ -82,7 +82,7 @@ def start_notification_scheduler(app):
         "interval",
         seconds=interval,
         args=[app],
-        id="send_due_whatsapp_notifications",
+        id="send_due_notifications",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

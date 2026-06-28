@@ -95,7 +95,7 @@ export const mapApiRecordToInvoice = (row: any): Invoice => {
     total: total,
     paymentMethod: payment.provider || booking.payment_method || row.paymentMethod || "UPI",
     transactionId: payment.provider_payment_id || row.paymentId || row.transactionId || "N/A",
-    gateway: payment.provider || booking.payment_method || row.gateway || "Razorpay",
+    gateway: payment.provider || booking.payment_method || row.gateway || "UPI",
     paymentStatus: payment.status || booking.payment_status || row.paymentStatus || "Paid",
     invoiceStatus: row.invoiceStatus || "Issued",
     issuedAt: row.createdAt || row.issuedAt || new Date().toISOString(),

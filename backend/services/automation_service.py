@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from flask import current_app
 from services.firestore_client import get_db, server_timestamp
 from services.invoice_service import create_invoice_for_booking
-from services.whatsapp_service import send_whatsapp_message, normalize_phone_number
 from services.gst_service import create_gst_entry
 from services.date_utils import parse_iso_date, each_date_inclusive
 from services.email_service import send_email
@@ -289,10 +288,7 @@ Sri Nirvana Plaza"""
             booking = booking_doc.to_dict() or {}
             
             # Immediate payment failed notification to customer
-            if settings.get("whatsapp_enabled", True):
-                retry_url = f"{current_app.config.get('FRONTEND_URL', 'http://localhost:5173')}/checkout/{booking_id}"
-                msg = f"🏨 SRI NIRVANA PLAZA\n\nHi {booking.get('guest_name')},\n\nWe noticed your payment for booking ID {booking_id} has failed. To prevent your reservation from being automatically cancelled, please retry your payment using the link below:\n\nLink: {retry_url}\n\nSupport: +91 98765 43210"
-                send_whatsapp_message(booking.get("phone", ""), msg)
+            # WhatsApp notification removed
             
             # Admin Notification
             schedule_admin_notification(
