@@ -8,8 +8,8 @@ const firebaseConfig = {
   projectId: "sri-nirvana-plaza",
   storageBucket: "sri-nirvana-plaza.firebasestorage.app",
   messagingSenderId: "8831156962",
-  appId: "1:8831156962:web:a2fc65074dc087273154bb",
-  measurementId: "G-W79JF025PQ"
+  appId: "1:8831156962:web:5c81edd84ab42d893154bb",
+  measurementId: "G-4DX66VVPJT"
 };
 
 // Initialize Firebase

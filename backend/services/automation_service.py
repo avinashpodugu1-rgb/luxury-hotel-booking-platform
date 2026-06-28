@@ -439,27 +439,74 @@ Sri Nirvana Plaza"""
                 task_ref.set({
                     "taskId": task_ref.id,
                     "room_id": room_id,
-                    "task_type": "Deep Clean",
-                    "status": "pending",
+                    "room_number": payload.get("room_number", ""),
+                    "task_type": "Deep Cleaning",
+                    "status": "Pending",
                     "assigned_to": "Housekeeping Team A",
                     "priority": "High",
                     "notes": f"Checkout cleaning for booking {booking_id}",
+                    "estimated_duration": "45 mins",
                     "created_at": server_timestamp(),
                     "updated_at": server_timestamp()
                 })
                 # Set room status to dirty/cleaning
-                db.collection("rooms").document(room_id).update({"status": "cleaning"})
+                db.collection("rooms").document(room_id).update({"status": "cleaning", "updated_at": server_timestamp()})
                 print(f"[HOUSEKEEPING AUTOMATION] Created checkout cleaning task for room {room_id}.")
 
         elif event_name == "housekeeping_completed":
             room_id = payload.get("room_id")
-            task_id = payload.get("taskId")
+            task_id = payload.get("id") or payload.get("taskId")
             if room_id:
                 db.collection("rooms").document(room_id).update({
                     "status": "available",
                     "updated_at": server_timestamp()
                 })
-                print(f"[RECEPTION ALERT] Room {room_id} is clean and ready for arrivals. Housekeeping task {task_id} completed.")
+                print(f"[RECEPTION ALERT] Room {room_id} is clean, inspected and ready. Task {task_id} completed.")
+
+        elif event_name == "housekeeping_inspection_failed":
+            room_id = payload.get("room_id")
+            task_id = payload.get("id")
+            if room_id:
+                # Create another cleaning task
+                task_ref = db.collection("housekeeping_tasks").document()
+                task_ref.set({
+                    "taskId": task_ref.id,
+                    "room_id": room_id,
+                    "room_number": payload.get("room_number", ""),
+                    "task_type": "Room Cleaning",
+                    "status": "Pending",
+                    "assigned_to": payload.get("assigned_to", "Housekeeping Team A"),
+                    "priority": "Urgent",
+                    "notes": f"Re-cleaning required. Inspection failed for previous task {task_id}.",
+                    "estimated_duration": "20 mins",
+                    "created_at": server_timestamp(),
+                    "updated_at": server_timestamp()
+                })
+                print(f"[HOUSEKEEPING ALERT] Inspection failed for {room_id}. Auto-created Urgent re-cleaning task.")
+
+        elif event_name == "housekeeping_maintenance_reported":
+            room_id = payload.get("room_id")
+            reason = payload.get("reason", "Housekeeping reported issue")
+            
+            if room_id:
+                # Create Maintenance block automatically
+                block_ref = db.collection("maintenance_blocks").document()
+                block_ref.set({
+                    "room_id": room_id,
+                    "start_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                    "end_date": (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%d"),
+                    "reason": reason,
+                    "status": "Active",
+                    "priority": "High",
+                    "created_by": "System (Auto-generated from Housekeeping)",
+                    "created_at": server_timestamp()
+                })
+                AutomationService.trigger_event("room_blocked", {"room_id": room_id, "start_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "end_date": (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%d"), "reason": reason})
+
+        elif event_name == "room_service_delivered":
+            # Notify guest that room service was delivered
+            room_number = payload.get("room_number", "")
+            print(f"[ROOM SERVICE ALERT] Order delivered to room {room_number}.")
 
         elif event_name == "corporate_booking_created":
             booking_id = payload.get("id")

@@ -52,6 +52,10 @@ def verify_payment():
             "invoice_number": invoice_number or f"SNP-{str(booking_id)[:8].upper()}",
             "id": ref.id
         })
+        try:
+            create_invoice_for_booking(str(booking_id), ref.id, invoice_number)
+        except Exception as e:
+            print(f"Failed to auto-generate invoice: {e}")
     data = ref.get().to_dict() or {}
     data["id"] = ref.id
     return jsonify({"payment": data})
@@ -84,6 +88,13 @@ def mark_payment_success():
         "invoice_number": invoice_number,
         "id": ref.id
     })
+    
+    # Auto-generate invoice and GST entry
+    try:
+        create_invoice_for_booking(str(booking_id), ref.id, invoice_number)
+    except Exception as e:
+        print(f"Failed to auto-generate invoice: {e}")
+
     invoice = {"invoiceNumber": invoice_number, "bookingId": booking_id}
     return jsonify({"payment": payment, "booking": booking, "invoice": invoice})
 

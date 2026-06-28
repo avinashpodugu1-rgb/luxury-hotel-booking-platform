@@ -1,4 +1,4 @@
-import { GoogleLogin, GoogleOAuthProvider, type CredentialResponse } from "@react-oauth/google";
+
 import {
   ArcElement,
   BarElement,
@@ -29,10 +29,8 @@ import {
   categoryProfiles,
   categoryToSlug,
   dateStatus,
-  findRoom,
   galleryImages,
   heroImage,
-  rooms,
   slugToCategory,
   type Room,
   type RoomCategory,
@@ -56,7 +54,7 @@ ChartJS.register(
   Tooltip,
 );
 
-const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "demo-google-client-id.apps.googleusercontent.com";
+
 
 const fieldClass =
   "w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none ring-0 placeholder:text-[var(--muted)]/70 focus:border-[var(--gold)] focus:shadow-[0_0_0_4px_rgba(184,137,69,0.14)]";
@@ -99,27 +97,7 @@ type RazorpayOptions = {
   theme: { color: string };
 };
 
-type GoogleCredentialPayload = {
-  email?: string;
-  name?: string;
-  given_name?: string;
-};
 
-const decodeGoogleCredential = (credential: string): GoogleCredentialPayload | null => {
-  try {
-    const payload = credential.split(".")[1];
-    const normalizedPayload = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const json = decodeURIComponent(
-      atob(normalizedPayload)
-        .split("")
-        .map((char) => `%${`00${char.charCodeAt(0).toString(16)}`.slice(-2)}`)
-        .join(""),
-    );
-    return JSON.parse(json) as GoogleCredentialPayload;
-  } catch {
-    return null;
-  }
-};
 
 function Icon({ name, className = "" }: { name: IconName; className?: string }) {
   return (
@@ -271,8 +249,7 @@ function AnimatedRoutes() {
   const location = useLocation();
 
   return (
-    <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
+    <Routes location={location}>
         <Route path="/" element={<ArenaInspiredHomePage />} />
         <Route path="/legacy-home" element={<HomePage />} />
         <Route path="/rooms" element={<RoomsPage />} />
@@ -294,7 +271,6 @@ function AnimatedRoutes() {
         <Route path="/payment-success" element={<PaymentSuccessPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
-    </AnimatePresence>
   );
 }
 
@@ -407,6 +383,7 @@ function Navbar() {
 }
 
 function HomePage() {
+  const { rooms } = useHotel();
   return (
     <Page>
       <Hero />
@@ -594,6 +571,7 @@ function SearchField({ label, type, value, onChange }: { label: string; type: "d
 }
 
 function RoomsPage() {
+  const { rooms } = useHotel();
   const location = useLocation();
   const params = useParams();
   const queryCategory = new URLSearchParams(location.search).get("category") ?? undefined;
@@ -753,8 +731,12 @@ function RoomCard({ room }: { room: Room }) {
 }
 
 function RoomDetailPage() {
+  const { rooms, isLoadingRooms } = useHotel();
   const params = useParams();
-  const room = findRoom(params.roomId);
+  
+  // Handle legacy room IDs like "deluxe-101" by extracting "101"
+  const room = rooms.find(r => r.id === params.roomId || r.id === params.roomId?.split('-').pop());
+  
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [photoName, setPhotoName] = useState("");
@@ -767,6 +749,14 @@ function RoomDetailPage() {
     const total = reviews.reduce((sum, review) => sum + review.rating, 0);
     return (total / reviews.length).toFixed(1);
   }, [reviews]);
+
+  if (isLoadingRooms) {
+    return (
+      <Page className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-[var(--gold)] border-t-transparent" />
+      </Page>
+    );
+  }
 
   if (!room) {
     return <NotFoundPage />;
@@ -1388,19 +1378,7 @@ function AuthPage({ defaultRole }: { defaultRole: "customer" | "admin" }) {
     }
   };
 
-  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
-    const googleProfile = credentialResponse.credential ? decodeGoogleCredential(credentialResponse.credential) : null;
-    try {
-      if (credentialResponse.credential) {
-        await apiClient.post("/auth/google", { credential: credentialResponse.credential });
-      }
-      await loginWithGoogle(googleProfile?.email, googleProfile?.name || googleProfile?.given_name, credentialResponse.credential);
-      navigate(customerRedirect);
-    } catch (err: any) {
-      const serverMessage = err.response?.data?.message;
-      setError(serverMessage || "Google sign-in failed. Please register first.");
-    }
-  };
+
 
 
   return (
@@ -1487,23 +1465,7 @@ function AuthPage({ defaultRole }: { defaultRole: "customer" | "admin" }) {
             </motion.button>
           </form>
 
-          <div className="my-6 flex items-center gap-4 text-xs font-bold uppercase tracking-[0.25em] text-[var(--muted)]">
-            <span className="h-px flex-1 bg-[var(--border)]" /> Google OAuth <span className="h-px flex-1 bg-[var(--border)]" />
-          </div>
 
-          <div className="overflow-hidden rounded-full border border-[var(--border)] bg-[var(--surface)] p-1">
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={() => setError("Google sign-in could not start. Configure VITE_GOOGLE_CLIENT_ID or use demo Google login.")}
-              shape="pill"
-              theme={theme === "dark" ? "filled_black" : "outline"}
-              text="continue_with"
-              width="420"
-            />
-          </div>
-          <button type="button" onClick={() => { void loginWithGoogle().then(() => navigate(customerRedirect)); }} className="mt-3 w-full rounded-full border border-[var(--border)] bg-[var(--surface-soft)] px-6 py-4 text-sm font-black text-[var(--text)]">
-            Continue with Google demo
-          </button>
         </div>
       </div>
     </Page>
@@ -1511,7 +1473,7 @@ function AuthPage({ defaultRole }: { defaultRole: "customer" | "admin" }) {
 }
 
 function UserDashboardPage() {
-  const { user, notifications, wishlist } = useHotel();
+  const { user, notifications, wishlist, rooms } = useHotel();
   const savedRooms = rooms.filter((room) => wishlist.includes(room.id));
   const visibleSavedRooms = savedRooms.length ? savedRooms : rooms.slice(0, 2);
   const customerBookings = useMemo(() => (user ? readCustomerBookings(user.email) : []), [user]);
@@ -1604,8 +1566,9 @@ function UserDashboardPage() {
                         <div className="mt-3 flex flex-wrap gap-2">
                           <button type="button" onClick={() => setSelectedInvoice(invoice)} className="rounded-full bg-[#24180d] px-3 py-2 text-xs font-black text-white">View Invoice</button>
                           <button type="button" onClick={() => downloadInvoice(invoice)} className="rounded-full bg-white px-3 py-2 text-xs font-black text-[#24180d]">Download PDF</button>
-                          <button type="button" onClick={() => window.print()} className="rounded-full bg-white px-3 py-2 text-xs font-black text-[#24180d]">Print</button>
-                          <button type="button" onClick={() => void shareInvoice(invoice)} className="rounded-full bg-white px-3 py-2 text-xs font-black text-[#24180d]">Share</button>
+                          <button type="button" onClick={() => window.print()} className="rounded-full bg-white px-3 py-2 text-xs font-black text-[#24180d]">Print Invoice</button>
+                          <button type="button" onClick={() => { window.location.href = `mailto:?subject=Your Invoice for ${booking.roomTitle}&body=Please find your invoice attached.`; }} className="rounded-full bg-white px-3 py-2 text-xs font-black text-[#24180d]">Email</button>
+                          <button type="button" onClick={() => { window.open(`https://wa.me/?text=Here is your invoice for booking ${booking.id}. Download PDF at: ${window.location.origin}/invoice/${booking.invoiceId}`, '_blank'); }} className="rounded-full bg-white px-3 py-2 text-xs font-black text-[#24180d]">WhatsApp</button>
                         </div>
                       </div>
                     );
@@ -1659,8 +1622,10 @@ function UserDashboardPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-black">{money(booking.total)}</span>
                         <button type="button" onClick={() => setSelectedInvoice(invoice)} className="rounded-full bg-[#f8efe3] px-3 py-2 text-xs font-black text-[#9b6a33]">View Invoice</button>
-                        <button type="button" onClick={() => downloadInvoice(invoice)} className="rounded-full bg-[#f8efe3] px-3 py-2 text-xs font-black text-[#9b6a33]">Download Again</button>
-                        <button type="button" onClick={() => void shareInvoice(invoice)} className="rounded-full bg-[#f8efe3] px-3 py-2 text-xs font-black text-[#9b6a33]">Share</button>
+                        <button type="button" onClick={() => downloadInvoice(invoice)} className="rounded-full bg-[#f8efe3] px-3 py-2 text-xs font-black text-[#9b6a33]">Download PDF</button>
+                        <button type="button" onClick={() => window.print()} className="rounded-full bg-[#f8efe3] px-3 py-2 text-xs font-black text-[#9b6a33]">Print Invoice</button>
+                        <button type="button" onClick={() => { window.location.href = `mailto:?subject=Your Invoice for ${booking.roomTitle}&body=Please find your invoice attached.`; }} className="rounded-full bg-[#f8efe3] px-3 py-2 text-xs font-black text-[#9b6a33]">Email Invoice</button>
+                        <button type="button" onClick={() => { window.open(`https://wa.me/?text=Here is your invoice for booking ${booking.id}. Download PDF at: ${window.location.origin}/invoice/${booking.invoiceId}`, '_blank'); }} className="rounded-full bg-[#f8efe3] px-3 py-2 text-xs font-black text-[#9b6a33]">WhatsApp</button>
                       </div>
                     </div>
                   );
@@ -1726,17 +1691,17 @@ function GalleryPage() {
 
 function ExperiencesPage() {
   const experiences = [
-    ["Rooftop tasting menu", "A private chef table under the city skyline."],
-    ["Nirvana spa circuit", "Steam, aroma therapy, and deep tissue rituals."],
-    ["Heritage city drive", "A chauffeur-led cultural evening curated by concierge."],
+    { title: "Rooftop tasting menu", copy: "A private chef table under the city skyline.", image: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1200&h=800&q=80" },
+    { title: "Nirvana spa circuit", copy: "Steam, aroma therapy, and deep tissue rituals.", image: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=1200&h=800&q=80" },
+    { title: "Heritage city drive", copy: "A chauffeur-led cultural evening curated by concierge.", image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&h=800&q=80" },
   ];
   return (
     <Page className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
       <SectionHeading eyebrow="Experiences" title="Beyond rooms, book moments worth returning for." copy="Premium guest experiences can be attached to reservations and managed by the concierge team." />
       <div className="grid gap-6 md:grid-cols-3">
-        {experiences.map(([title, copy], index) => (
+        {experiences.map(({ title, copy, image }) => (
           <motion.div key={title} whileHover={{ y: -8 }} className="rounded-[2rem] border border-[var(--border)] bg-[var(--surface)] p-6 shadow-[0_18px_60px_rgba(38,28,18,0.08)]">
-            <img src={galleryImages[index + 4].src} alt={title} className="h-56 w-full rounded-[1.5rem] object-cover" />
+            <img src={image} alt={title} className="h-56 w-full rounded-[1.5rem] object-cover" />
             <h2 className="mt-5 text-2xl font-black text-[var(--text)]">{title}</h2>
             <p className="mt-3 leading-7 text-[var(--muted)]">{copy}</p>
           </motion.div>
@@ -1867,6 +1832,8 @@ function ProfilePage() {
     Bronze: "from-[#8B4513] to-[#CD7F32]",
   };
 
+  const customerBookings = useMemo(() => (user ? readCustomerBookings(user.email) : []), [user]);
+
   return (
     <Page className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
       {/* Header card */}
@@ -1987,29 +1954,25 @@ function ProfilePage() {
         {/* Bookings Tab */}
         {activeTab === "bookings" && (
           <div className="mt-6 space-y-4">
-            {guestBookings.length === 0 ? (
+            {customerBookings.length === 0 ? (
               <p className="py-8 text-center text-[var(--muted)]">No bookings found.</p>
             ) : (
-              guestBookings.map((b) => (
-                <div key={b.id as string} className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-soft)] p-4">
+              customerBookings.map((b) => (
+                <div key={b.id} className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-soft)] p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm font-black text-[var(--text)]">Room {b.room_number as string} — {b.room_type as string}</p>
-                      <p className="mt-1 text-xs text-[var(--muted)]">{b.check_in as string} → {b.check_out as string}</p>
-                      <p className="mt-1 text-xs font-bold text-[var(--gold)]">₹{Number(b.total_amount ?? 0).toLocaleString("en-IN")}</p>
+                      <p className="text-sm font-black text-[var(--text)]">Room {b.roomNumber} — {b.roomType}</p>
+                      <p className="mt-1 text-xs text-[var(--muted)]">{b.checkIn} → {b.checkOut}</p>
+                      <p className="mt-1 text-xs font-bold uppercase tracking-wider text-[var(--gold)]">{b.status}</p>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <span className={`rounded-full px-3 py-1 text-xs font-black ${
-                        b.status === "confirmed" ? "bg-emerald-100 text-emerald-700" :
-                        b.status === "cancelled" ? "bg-rose-100 text-rose-700" :
-                        "bg-amber-100 text-amber-700"
-                      }`}>{String(b.status)}</span>
-                      {b.payment_status === "paid" && (
-                        <button type="button" onClick={() => downloadPDF(b.id as string)}
-                          className="inline-flex items-center gap-1 rounded-xl border border-[var(--gold)] px-3 py-1.5 text-xs font-black text-[var(--gold)] hover:bg-[var(--gold)] hover:text-white transition">
-                          📄 Download PDF
-                        </button>
-                      )}
+                    <div className="text-right flex flex-col items-end gap-2">
+                      <p className="text-sm font-black text-[var(--text)]">{money(b.total)}</p>
+                      <div className="mt-2 flex gap-2">
+                        <Link to={`/room/${b.roomId}`} className="rounded-full bg-[var(--surface)] px-3 py-1 text-xs font-bold text-[var(--text)] border border-[var(--border)]">View</Link>
+                        {b.invoiceId && (
+                          <button type="button" onClick={() => downloadPDF(b.invoiceId!)} className="rounded-full bg-[var(--text)] px-3 py-1 text-xs font-bold text-[var(--page)]">PDF</button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2023,8 +1986,7 @@ function ProfilePage() {
 }
 
 function WishlistPage() {
-
-  const { wishlist } = useHotel();
+  const { wishlist, rooms } = useHotel();
   const savedRooms = rooms.filter((room) => wishlist.includes(room.id));
   return (
     <Page className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -2186,7 +2148,7 @@ function Footer() {
         <div>
           <p className="text-xs font-black uppercase tracking-[0.35em] text-[var(--gold)]">SRI NIRVANA PLAZA</p>
           <h2 className="mt-3 text-3xl font-black text-[var(--text)]">Room Availability Calendar</h2>
-          <p className="mt-4 max-w-md leading-7 text-[var(--muted)]">Luxury hotel booking with customer dashboards, admin operations, Google OAuth, payments, reviews, wishlists, and real room calendars.</p>
+          <p className="mt-4 max-w-md leading-7 text-[var(--muted)]">Luxury hotel booking with customer dashboards, admin operations, payments, reviews, wishlists, and real room calendars.</p>
           <div className="mt-6 flex max-w-md rounded-full border border-[var(--border)] bg-[var(--page)] p-1">
             <input className="min-w-0 flex-1 bg-transparent px-4 text-sm outline-none" placeholder="Newsletter email" />
             <button type="button" className="rounded-full bg-[var(--text)] px-5 py-3 text-sm font-bold text-[var(--page)]">Subscribe</button>
@@ -2212,10 +2174,8 @@ function Footer() {
 
 export default function App() {
   return (
-    <GoogleOAuthProvider clientId={googleClientId}>
-      <HotelProvider>
-        <AppRouter />
-      </HotelProvider>
-    </GoogleOAuthProvider>
+    <HotelProvider>
+      <AppRouter />
+    </HotelProvider>
   );
 }

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { apiClient, setAuthToken } from "../services/api";
+import type { Room } from "../data/hotelData";
 
 type Theme = "light" | "dark";
 type Role = "customer" | "admin";
@@ -38,6 +39,9 @@ type HotelContextValue = {
   logout: () => void;
   toggleWishlist: (roomId: string) => void;
   isWishlisted: (roomId: string) => boolean;
+  rooms: Room[];
+  isLoadingRooms: boolean;
+  refreshRooms: () => Promise<void>;
 };
 
 const HotelContext = createContext<HotelContextValue | undefined>(undefined);
@@ -89,7 +93,27 @@ export function HotelProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => readJson<Theme>("nirvana-theme", "light"));
   const [user, setUser] = useState<HotelUser | null>(() => readJson<HotelUser | null>("nirvana-user", null));
   const [wishlist, setWishlist] = useState<string[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem("nirvana-token"));
+
+  const refreshRooms = async () => {
+    setIsLoadingRooms(true);
+    try {
+      const response = await apiClient.get<{ rooms: Room[] }>("/rooms");
+      if (response.data.rooms) {
+        setRooms(response.data.rooms);
+      }
+    } catch (error) {
+      console.error("Failed to fetch rooms", error);
+    } finally {
+      setIsLoadingRooms(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshRooms();
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -277,8 +301,11 @@ export function HotelProvider({ children }: { children: ReactNode }) {
       logout,
       toggleWishlist,
       isWishlisted: (roomId: string) => wishlist.includes(roomId),
+      rooms,
+      isLoadingRooms,
+      refreshRooms,
     }),
-    [theme, user, wishlist],
+    [theme, user, wishlist, rooms, isLoadingRooms],
   );
 
   return <HotelContext.Provider value={value}>{children}</HotelContext.Provider>;

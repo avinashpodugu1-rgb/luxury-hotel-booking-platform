@@ -5,7 +5,8 @@ export type PMSRoomStatus = "available" | "booked" | "reserved" | "maintenance" 
 export type Priority = "Low" | "Medium" | "High";
 export type MaintenanceStatus = "Active" | "In Progress" | "Completed";
 export type BookingStatus = "Pending" | "Confirmed" | "Checked-In" | "Checked-Out" | "Cancelled";
-export type TaskStatus = "Pending" | "In Progress" | "Completed";
+export type TaskStatus = "Pending" | "Assigned" | "In Progress" | "Inspection Pending" | "Completed" | "Cancelled";
+export type RoomServiceStatus = "Received" | "Accepted" | "Preparing" | "Ready" | "Out for Delivery" | "Delivered" | "Cancelled";
 
 export type PMSRoom = {
   id: string;
@@ -82,20 +83,35 @@ export type SelfCheckIn = {
 export type HousekeepingTask = {
   id: string;
   roomNumber: string;
-  task: "Cleaning" | "Linen Change" | "Maintenance Support" | "Restock Minibar";
-  priority: Priority;
+  roomType: string;
+  floor: string;
+  task: "Room Cleaning" | "Deep Cleaning" | "Linen Change" | "Bathroom Cleaning" | "Room Inspection" | "Mini Bar Refill" | "Guest Requested Cleaning" | "Maintenance Follow-up" | "Sanitization" | "VIP Room Preparation" | "Maintenance Support";
+  priority: "Low" | "Medium" | "High" | "Urgent";
   assignedStaff: string;
+  assignedTime: string;
+  startTime: string;
+  completionTime: string;
+  estimatedDuration: string;
   status: TaskStatus;
   remarks: string;
 };
 
 export type ServiceRequest = {
   id: string;
+  bookingId: string;
   guestName: string;
   roomNumber: string;
-  requestType: "Food Orders" | "Laundry" | "Water Bottles" | "Extra Towels" | "Amenities";
+  requestType: "Food Orders" | "Laundry" | "Water Bottles" | "Extra Towels" | "Amenities" | "Spa" | "Taxi";
+  items: string;
+  quantity: number;
+  specialInstructions: string;
   requestTime: string;
-  status: TaskStatus;
+  assignedStaff: string;
+  estimatedDeliveryTime: string;
+  deliveryTime: string;
+  paymentStatus: "Paid" | "Pending" | "Billed to Room";
+  status: RoomServiceStatus;
+  totalAmount: number;
 };
 
 export type ComplaintRecord = {
@@ -398,18 +414,18 @@ export const selfCheckIns: SelfCheckIn[] = [
 ];
 
 export const housekeepingTasks: HousekeepingTask[] = [
-  { id: "HK-9001", roomNumber: "101", task: "Cleaning", assignedStaff: "Latha P", status: "Pending", remarks: "Arrival clean required by 13:30", priority: "Medium" },
-  { id: "HK-9002", roomNumber: "201", task: "Linen Change", assignedStaff: "Suresh N", status: "In Progress", remarks: "VIP linen and pillow menu", priority: "Low" },
-  { id: "HK-9003", roomNumber: "303", task: "Cleaning", assignedStaff: "Kavya S", status: "Completed", remarks: "Family amenity kit placed", priority: "Low" },
-  { id: "HK-9004", roomNumber: "404", task: "Maintenance Support", assignedStaff: "Ravi Kumar", status: "In Progress", remarks: "Support plumbing inspection", priority: "High" },
-  { id: "HK-9005", roomNumber: "502", task: "Linen Change", assignedStaff: "Meera Das", status: "Pending", remarks: "Presidential setup", priority: "High" },
+  { id: "HK-9001", roomNumber: "101", roomType: "Single", floor: "Floor 1", task: "Room Cleaning", priority: "Medium", assignedStaff: "Latha P", assignedTime: "10:00", startTime: "", completionTime: "", estimatedDuration: "30 mins", status: "Pending", remarks: "Arrival clean required by 13:30" },
+  { id: "HK-9002", roomNumber: "201", roomType: "Double", floor: "Floor 2", task: "Linen Change", priority: "Low", assignedStaff: "Suresh N", assignedTime: "09:00", startTime: "09:15", completionTime: "", estimatedDuration: "15 mins", status: "In Progress", remarks: "VIP linen and pillow menu" },
+  { id: "HK-9003", roomNumber: "303", roomType: "Deluxe", floor: "Floor 3", task: "Deep Cleaning", priority: "Low", assignedStaff: "Kavya S", assignedTime: "08:00", startTime: "08:15", completionTime: "09:00", estimatedDuration: "45 mins", status: "Completed", remarks: "Family amenity kit placed" },
+  { id: "HK-9004", roomNumber: "404", roomType: "Suite", floor: "Floor 4", task: "Maintenance Support", priority: "High", assignedStaff: "Ravi Kumar", assignedTime: "11:00", startTime: "11:10", completionTime: "", estimatedDuration: "60 mins", status: "In Progress", remarks: "Support plumbing inspection" },
+  { id: "HK-9005", roomNumber: "502", roomType: "Executive Suite", floor: "Floor 5", task: "Linen Change", priority: "High", assignedStaff: "Meera Das", assignedTime: "12:00", startTime: "", completionTime: "", estimatedDuration: "20 mins", status: "Pending", remarks: "Presidential setup" },
 ];
 
 export const serviceRequests: ServiceRequest[] = [
-  { id: "SRV-8101", guestName: "Aarav Mehta", roomNumber: "201", requestType: "Food Orders", requestTime: "09:15", status: "Completed" },
-  { id: "SRV-8102", guestName: "Neha Kapoor", roomNumber: "401", requestType: "Extra Towels", requestTime: "10:05", status: "In Progress" },
-  { id: "SRV-8103", guestName: "Isha Reddy", roomNumber: "303", requestType: "Amenities", requestTime: "11:40", status: "Pending" },
-  { id: "SRV-8104", guestName: "Kabir Sethi", roomNumber: "502", requestType: "Laundry", requestTime: "12:05", status: "Pending" },
+  { id: "SRV-8101", bookingId: "BKG-24091", guestName: "Aarav Mehta", roomNumber: "201", requestType: "Food Orders", items: "1x Club Sandwich, 2x Cola", quantity: 2, specialInstructions: "No onions", requestTime: "09:15", assignedStaff: "Rahul", estimatedDeliveryTime: "09:45", deliveryTime: "09:40", paymentStatus: "Paid", totalAmount: 450, status: "Delivered" },
+  { id: "SRV-8102", bookingId: "BKG-24092", guestName: "Neha Kapoor", roomNumber: "401", requestType: "Extra Towels", items: "2x Towels", quantity: 2, specialInstructions: "", requestTime: "10:05", assignedStaff: "Latha P", estimatedDeliveryTime: "10:15", deliveryTime: "", paymentStatus: "Billed to Room", totalAmount: 0, status: "Out for Delivery" },
+  { id: "SRV-8103", bookingId: "BKG-24093", guestName: "Isha Reddy", roomNumber: "303", requestType: "Amenities", items: "1x Dental Kit", quantity: 1, specialInstructions: "", requestTime: "11:40", assignedStaff: "Suresh N", estimatedDeliveryTime: "12:00", deliveryTime: "", paymentStatus: "Billed to Room", totalAmount: 0, status: "Received" },
+  { id: "SRV-8104", bookingId: "BKG-24094", guestName: "Kabir Sethi", roomNumber: "502", requestType: "Laundry", items: "3x Shirts, 1x Trousers", quantity: 4, specialInstructions: "Express delivery", requestTime: "12:05", assignedStaff: "Meera Das", estimatedDeliveryTime: "18:00", deliveryTime: "", paymentStatus: "Pending", totalAmount: 800, status: "Accepted" },
 ];
 
 export const complaintRecords: ComplaintRecord[] = [

@@ -98,7 +98,10 @@ def google_login():
     try:
         profile = verify_google_credential(credential)
     except Exception as exc:
-        return jsonify({"message": "Google token verification failed", "detail": str(exc)}), 401
+        # Log the detailed error inside server logs
+        from flask import current_app
+        current_app.logger.error(f"Google token verification failed: {exc}")
+        return jsonify({"message": "Google Authentication Failed. Please contact administrator."}), 401
 
     email = profile.get("email", "").lower()
     existing = user_by_email(email)

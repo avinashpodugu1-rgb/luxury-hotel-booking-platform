@@ -43,7 +43,7 @@ def create_invoice_for_booking(booking_id: str, payment_id: str = "", invoice_nu
     if not booking_doc.exists:
         raise ValueError("Booking not found")
     booking = booking_doc.to_dict() or {}
-    if booking.get("payment_status") != "paid":
+    if str(booking.get("payment_status", "")).lower() != "paid":
         raise ValueError("Invoice can only be generated after successful payment")
 
     room_id = str(booking.get("room_id", ""))
@@ -60,6 +60,20 @@ def create_invoice_for_booking(booking_id: str, payment_id: str = "", invoice_nu
         payment = payment_doc.to_dict() or {} if payment_doc.exists else {}
 
     total_amount = float(booking.get("total_amount", 0))
+    subtotal = float(booking.get("subtotal", 0))
+    discount = float(booking.get("discount", 0))
+    
+    # Calculate additional Room Service charges (unbilled/pending payment)
+    room_service_docs = list(db.collection("room_service_orders").where("booking_id", "==", booking_id).where("payment_status", "==", "Pending").stream())
+    additional_charges = sum(float((doc.to_dict() or {}).get("total_amount", 0)) for doc in room_service_docs)
+    total_amount += additional_charges
+    
+    # Calculate Adults vs Children from guest_details
+    guest_details = booking.get("guest_details") or []
+    adults = sum(1 for g in guest_details if int(g.get("age", 18)) >= 18) if guest_details else booking.get("guests", 1)
+    children = sum(1 for g in guest_details if int(g.get("age", 18)) < 18) if guest_details else 0
+    extra_beds = booking.get("extra_beds", 0)
+
     gst_entry = create_gst_entry(booking_id, invoice_number or f"SNP-{booking_id[:8].upper()}", total_amount)
 
     # Capture details from existing document to preserve ID and number during force regeneration
@@ -92,8 +106,14 @@ def create_invoice_for_booking(booking_id: str, payment_id: str = "", invoice_nu
             "paymentId": payment_id or (existing.to_dict() or {}).get("paymentId", ""),
             "guestId": user_id,
             "roomId": room_id,
+            "subtotal": subtotal,
+            "additionalCharges": additional_charges,
+            "discount": discount,
             "totalAmount": total_amount,
             "gstAmount": gst_entry.get("total_tax", 0),
+            "adults": adults,
+            "children": children,
+            "extraBeds": extra_beds,
             "invoiceUrl": invoice_url,
             "pdfUrl": invoice_url,
             "qrCode": qr_payload,

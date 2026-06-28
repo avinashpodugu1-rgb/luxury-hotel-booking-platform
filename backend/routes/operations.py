@@ -14,8 +14,8 @@ operations_bp = Blueprint("operations", __name__)
 COLLECTION_FIELDS = {
     "enquiries": ["name", "phone", "email", "message", "room_type", "preferred_dates", "status", "owner", "source"],
     "corporate_bookings": ["company_name", "contact_person", "phone", "email", "room_count", "check_in", "check_out", "status", "notes"],
-    "housekeeping_tasks": ["room_id", "task_type", "status", "assigned_to", "priority", "notes", "completed_at"],
-    "room_service_orders": ["booking_id", "room_id", "item", "quantity", "status", "notes"],
+    "housekeeping_tasks": ["room_id", "room_number", "room_type", "floor", "task_type", "status", "assigned_to", "priority", "notes", "completed_at", "assigned_time", "start_time", "estimated_duration"],
+    "room_service_orders": ["booking_id", "guest_name", "room_number", "room_id", "item", "category", "quantity", "special_instructions", "status", "assigned_to", "estimated_delivery_time", "delivery_time", "payment_status", "total_amount", "notes"],
     "complaints": ["user_id", "room_id", "category", "description", "status", "priority", "resolved_at"],
     "feedback": ["user_id", "booking_id", "rating", "comment", "category"],
     "gst_entries": ["booking_id", "invoice_number", "taxable_amount", "cgst", "sgst", "total_tax"],
@@ -118,8 +118,13 @@ def update_collection_doc(collection_name, doc_id):
         if result.get("status") in {"resolved", "Resolved"}:
             AutomationService.trigger_event("complaint_resolved", result)
     elif collection_name == "housekeeping_tasks":
-        if result.get("status") in {"completed", "Completed"}:
-            AutomationService.trigger_event("housekeeping_completed", {"room_id": result.get("room_id"), "taskId": result.get("id")})
+        if result.get("status") in {"completed", "Completed", "Inspection Passed"}:
+            AutomationService.trigger_event("housekeeping_completed", result)
+        elif result.get("status") == "Inspection Failed":
+            AutomationService.trigger_event("housekeeping_inspection_failed", result)
+    elif collection_name == "room_service_orders":
+        if result.get("status") in {"Delivered", "delivered"}:
+            AutomationService.trigger_event("room_service_delivered", result)
 
     return jsonify({"document": result})
 

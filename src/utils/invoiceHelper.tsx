@@ -28,9 +28,14 @@ export type Invoice = {
   checkIn: string;
   checkOut: string;
   guests: number;
+  adults?: number;
+  children?: number;
+  extraBeds?: number;
   guestDetails?: GuestDetail[];
   nights: number;
   subtotal: number;
+  additionalCharges?: number;
+  discount?: number;
   taxes: number;
   serviceCharge: number;
   total: number;
@@ -77,9 +82,14 @@ export const mapApiRecordToInvoice = (row: any): Invoice => {
     checkIn: booking.check_in || row.checkIn,
     checkOut: booking.check_out || row.checkOut,
     guests: booking.guests || row.guests || 1,
+    adults: row.adults || booking.adults || 1,
+    children: row.children || booking.children || 0,
+    extraBeds: row.extraBeds || booking.extra_beds || 0,
     guestDetails: booking.guest_details || row.guestDetails || [],
     nights: nights,
     subtotal: booking.subtotal || row.subtotal || Math.round(total / 1.2),
+    additionalCharges: row.additionalCharges || 0,
+    discount: row.discount || 0,
     taxes: booking.taxes || row.taxes || Math.round((total / 1.2) * 0.12),
     serviceCharge: booking.service_charge || row.serviceCharge || Math.round((total / 1.2) * 0.08),
     total: total,
@@ -216,6 +226,10 @@ export const downloadInvoice = (invoice: Invoice) => {
     ["Occupancy Limit", `${invoice.maxOccupancy ?? 2} Guests`],
     ["Checked-In Stay", `${invoice.checkIn} to ${invoice.checkOut}`],
     ["Nights Booked", `${invoice.nights} Night${invoice.nights > 1 ? "s" : ""}`],
+    ["Occupants", `${invoice.adults || invoice.guests} Adult(s), ${invoice.children || 0} Child(ren)`],
+    ["Extra Beds", `${invoice.extraBeds || 0}`],
+    ["Occupants", `${invoice.adults || invoice.guests} Adult(s), ${invoice.children || 0} Child(ren)`],
+    ["Extra Beds", `${invoice.extraBeds || 0}`],
   ];
 
   let y = 68;
@@ -284,12 +298,8 @@ export const downloadInvoice = (invoice: Invoice) => {
 
   // Optional charges (only if > 0)
   const optionalCharges: Array<[string, number, number, number, number]> = [
-    ["Extra Bed Charges", 0, 0, 1, 0],
-    ["Food / Restaurant Bills", 0, 0, 1, 0],
-    ["Laundry / Dry Cleaning Services", 0, 0, 1, 0],
-    ["Room Service Orders", 0, 0, 1, 0],
-    ["Mini Bar Deliveries", 0, 0, 1, 0],
-    ["Early Check-in / Late Checkout Fees", 0, 0, 1, 0]
+    ["Room Service / Additional Charges", 1, invoice.additionalCharges || 0, 1, invoice.additionalCharges || 0],
+    ["Discount / Promotional Coupons", 1, -(invoice.discount || 0), 1, -(invoice.discount || 0)]
   ];
 
   optionalCharges.forEach(([desc, qty, rate, days, amt]) => {
@@ -488,6 +498,10 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
     ["Occupancy Limit", `${invoice.maxOccupancy ?? 2} Guests`],
     ["Checked-In Stay", `${invoice.checkIn} to ${invoice.checkOut}`],
     ["Nights Booked", `${invoice.nights} Night${invoice.nights > 1 ? "s" : ""}`],
+    ["Occupants", `${invoice.adults || invoice.guests} Adult(s), ${invoice.children || 0} Child(ren)`],
+    ["Extra Beds", `${invoice.extraBeds || 0}`],
+    ["Occupants", `${invoice.adults || invoice.guests} Adult(s), ${invoice.children || 0} Child(ren)`],
+    ["Extra Beds", `${invoice.extraBeds || 0}`],
   ];
 
   const tableRows = useMemo(() => {
@@ -511,13 +525,8 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
     ];
 
     const optional = [
-      { desc: "Extra Bed Charges", amount: 0 },
-      { desc: "Food / Restaurant Bills", amount: 0 },
-      { desc: "Laundry / Dry Cleaning Services", amount: 0 },
-      { desc: "Room Service Orders", amount: 0 },
-      { desc: "Mini Bar Deliveries", amount: 0 },
-      { desc: "Early Check-in / Late Checkout Fees", amount: 0 },
-      { desc: "Discount / Promotional Coupons", amount: 0 }
+      { desc: "Room Service / Additional Charges", amount: invoice.additionalCharges || 0 },
+      { desc: "Discount / Promotional Coupons", amount: -(invoice.discount || 0) }
     ];
 
     optional.forEach((item) => {

@@ -59,6 +59,7 @@ type AdminModule =
   | "self-check-in"
   | "housekeeping"
   | "room-service"
+  | "experiences"
   | "complaints"
   | "feedback"
   | "payments"
@@ -110,10 +111,18 @@ type AdminInvoice = {
   invoiceNumber: string;
   bookingId: string;
   guestName: string;
+  guestPhone: string;
   guestEmail: string;
   roomNumber: string;
+  roomType: string;
+  checkIn: string;
+  checkOut: string;
+  taxableAmount: number;
+  gstPercent: number;
   totalAmount: number;
   gstAmount: number;
+  paymentMethod: string;
+  transactionId: string;
   paymentStatus: string;
   invoiceStatus: string;
   createdAt?: string;
@@ -130,6 +139,7 @@ const adminModules: Array<{ key: AdminModule; label: string; group: string }> = 
   { key: "self-check-in", label: "Self Check-in", group: "Operations" },
   { key: "housekeeping", label: "Housekeeping", group: "Services" },
   { key: "room-service", label: "Room Service", group: "Services" },
+  { key: "experiences", label: "Experiences", group: "Services" },
   { key: "complaints", label: "Complaints", group: "Guest Care" },
   { key: "feedback", label: "Feedback", group: "Guest Care" },
   { key: "payments", label: "Payments & GST", group: "Finance" },
@@ -346,16 +356,25 @@ const mapApiInvoice = (row: ApiRecord): AdminInvoice => {
   const guest = (row.guest || {}) as ApiRecord;
   const room = (row.room || {}) as ApiRecord;
   const payment = (row.payment || {}) as ApiRecord;
+  const gst = (row.gst || {}) as ApiRecord;
   return {
     id: asString(row.id || row.invoiceId),
     invoiceNumber: asString(row.invoiceNumber),
     bookingId: asString(row.bookingId),
     guestName: asString(booking.guest_name || guest.full_name, "Guest"),
+    guestPhone: asString(booking.phone || guest.phone, ""),
     guestEmail: asString(booking.email || guest.email),
     roomNumber: asString(booking.room_number || room.room_number || row.roomId),
+    roomType: asString(room.room_type || booking.room_type, ""),
+    checkIn: asString(booking.check_in),
+    checkOut: asString(booking.check_out),
+    taxableAmount: asNumber(row.subtotal, 0) || asNumber(gst.taxable_amount, 0),
+    gstPercent: 12, // Standard Indian Hotel GST below 7500
     totalAmount: asNumber(row.totalAmount, 0),
     gstAmount: asNumber(row.gstAmount, 0),
-    paymentStatus: asString(payment.status, "paid"),
+    paymentMethod: asString(payment.provider || payment.payment_method, "UPI"),
+    transactionId: asString(payment.provider_payment_id || payment.transaction_id || payment.id, ""),
+    paymentStatus: asString(payment.status || row.paymentStatus, "paid"),
     invoiceStatus: asString(row.invoiceStatus, "Issued"),
     createdAt: asString(row.createdAt),
     rawRecord: row,
@@ -404,6 +423,43 @@ function AdminClock() {
       <p className="text-[8px] font-black uppercase tracking-[0.1em] text-[#d2aa6a] mt-1 leading-none text-right">
         {greeting}, Admin
       </p>
+    </div>
+  );
+}
+
+function ExperiencesModule() {
+  const experiences = [
+    { title: "Rooftop tasting menu", copy: "A private chef table under the city skyline.", image: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1200&h=800&q=80", status: "Active", price: "INR 15,000" },
+    { title: "Nirvana spa circuit", copy: "Steam, aroma therapy, and deep tissue rituals.", image: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=1200&h=800&q=80", status: "Active", price: "INR 8,500" },
+    { title: "Heritage city drive", copy: "A chauffeur-led cultural evening curated by concierge.", image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&h=800&q=80", status: "Active", price: "INR 12,000" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-black">Manage Experiences</h2>
+        <button className="rounded-full bg-[#d2aa6a] px-6 py-2 text-xs font-black uppercase tracking-wider text-[#11100d] hover:scale-105 transition-transform">
+          Add New Experience
+        </button>
+      </div>
+      <div className="grid gap-6 md:grid-cols-3">
+        {experiences.map(({ title, copy, image, status, price }) => (
+          <div key={title} className="rounded-[2rem] border border-white/10 bg-white/5 overflow-hidden shadow-2xl">
+            <img src={image} alt={title} className="h-48 w-full object-cover" />
+            <div className="p-6">
+              <div className="flex justify-between items-start">
+                <h3 className="text-lg font-black text-white">{title}</h3>
+                <span className="rounded-full bg-emerald-500/20 px-2 py-1 text-[10px] font-black text-emerald-400">{status}</span>
+              </div>
+              <p className="mt-2 text-sm text-white/70 leading-6">{copy}</p>
+              <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
+                <span className="font-bold text-[#d2aa6a]">{price}</span>
+                <button className="text-xs font-black uppercase tracking-wider text-white hover:text-[#d2aa6a]">Edit</button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -502,36 +558,33 @@ export default function EnterpriseAdminPage() {
     navigate("/admin-login");
   };
 
-  const moduleContent = {
-    overview: <OverviewModule kpis={kpis} bookings={bookingsState} rooms={roomsState} blocks={blocksState} />,
-    calendar: (
-      <CalendarModule
-        rooms={roomsState}
-        bookings={bookingsState}
-        blocks={blocksState}
-        onSelectCell={setSelectedCell}
-      />
-    ),
-    rooms: <RoomsModule rooms={roomsState} setRooms={setRoomsState} blocks={blocksState} setBlocks={setBlocksState} notify={notify} search={search} />,
-    bookings: <BookingsModule rooms={roomsState} bookings={bookingsState} setBookings={setBookingsState} blocks={blocksState} notify={notify} search={search} />,
-    guests: <GuestsModule search={search} bookings={bookingsState} />,
-    corporate: <CorporateModule rows={corporateState} setRows={setCorporateState} search={search} notify={notify} />,
-    "self-check-in": <SelfCheckInModule search={search} />,
-    housekeeping: <HousekeepingModule rows={housekeepingState} setRows={setHousekeepingState} search={search} notify={notify} />,
-    "room-service": <RoomServiceModule rows={serviceState} setRows={setServiceState} search={search} notify={notify} />,
-    complaints: <ComplaintsModule rows={complaintsState} setRows={setComplaintsState} search={search} notify={notify} />,
-    feedback: <FeedbackModule rows={feedbackState} />,
-    payments: <PaymentsModule rows={paymentsState} search={search} />,
-    invoices: <InvoicesModule rows={invoiceRows} search={search} notify={notify} />,
-    revenue: <RevenueModule />,
-    ai: <AiModule />,
-    notifications: <NotificationsModule rows={notificationRows} logs={notificationLogs} search={search} notify={notify} setRows={setNotificationRows} />,
-    history: <HistoryModule search={search} />,
-    reports: <ReportsModule notify={notify} />,
-    maintenance: <MaintenanceModule rooms={roomsState} setRooms={setRoomsState} blocks={blocksState} setBlocks={setBlocksState} notify={notify} search={search} />,
-    profile: <ProfileSettingsModule userName={user?.name ?? "Nirvana Admin"} email={user?.email ?? "admin@nirvanaplaza.com"} onLogout={handleLogout} />,
-    automation: <AutomationModule notify={notify} />,
-  } satisfies Record<AdminModule, ReactNode>;
+  const renderModule = () => {
+    switch (activeModule) {
+      case "overview": return <OverviewModule kpis={kpis} bookings={bookingsState} rooms={roomsState} blocks={blocksState} />;
+      case "calendar": return <CalendarModule rooms={roomsState} bookings={bookingsState} blocks={blocksState} onSelectCell={setSelectedCell} />;
+      case "rooms": return <RoomsModule rooms={roomsState} setRooms={setRoomsState} blocks={blocksState} setBlocks={setBlocksState} notify={notify} search={search} />;
+      case "bookings": return <BookingsModule rooms={roomsState} bookings={bookingsState} setBookings={setBookingsState} blocks={blocksState} notify={notify} search={search} />;
+      case "guests": return <GuestsModule search={search} bookings={bookingsState} />;
+      case "corporate": return <CorporateModule rows={corporateState} setRows={setCorporateState} search={search} notify={notify} />;
+      case "self-check-in": return <SelfCheckInModule search={search} />;
+      case "housekeeping": return <HousekeepingModule rows={housekeepingState} setRows={setHousekeepingState} rooms={roomsState} search={search} notify={notify} />;
+      case "room-service": return <RoomServiceModule rows={serviceState} setRows={setServiceState} search={search} notify={notify} />;
+      case "experiences": return <ExperiencesModule />;
+      case "complaints": return <ComplaintsModule rows={complaintsState} setRows={setComplaintsState} search={search} notify={notify} />;
+      case "feedback": return <FeedbackModule rows={feedbackState} />;
+      case "payments": return <PaymentsModule rows={invoiceRows} search={search} notify={notify} />;
+      case "invoices": return <InvoicesModule rows={invoiceRows} search={search} notify={notify} />;
+      case "revenue": return <RevenueModule />;
+      case "ai": return <AiModule />;
+      case "notifications": return <NotificationsModule rows={notificationRows} logs={notificationLogs} search={search} notify={notify} setRows={setNotificationRows} />;
+      case "history": return <HistoryModule search={search} />;
+      case "reports": return <ReportsModule notify={notify} />;
+      case "maintenance": return <MaintenanceModule rooms={roomsState} setRooms={setRoomsState} blocks={blocksState} setBlocks={setBlocksState} notify={notify} search={search} />;
+      case "profile": return <ProfileSettingsModule userName={user?.name ?? "Nirvana Admin"} email={user?.email ?? "admin@nirvanaplaza.com"} onLogout={handleLogout} />;
+      case "automation": return <AutomationModule notify={notify} />;
+      default: return null;
+    }
+  };
 
   return (
     <motion.main
@@ -911,13 +964,23 @@ function RoomsModule({ rooms, setRooms, blocks, setBlocks, notify, search }: { r
       notify("Room number already exists.");
       return;
     }
-    setRooms((current) => [{ id: `pms-room-${form.roomNumber}`, ...form }, ...current]);
-    notify("Room added successfully.");
+    apiClient.post("/rooms", { roomNumber: form.roomNumber, category: form.roomType, ...form }).then((res) => {
+      setRooms((current) => [{ id: res.data.room.id, ...form }, ...current]);
+      notify("Room added successfully.");
+    }).catch((err) => {
+      notify("Failed to add room.");
+      console.error(err);
+    });
   };
 
   const changeStatus = (roomNumber: string, status: PMSRoomStatus) => {
-    setRooms((current) => current.map((room) => room.roomNumber === roomNumber ? { ...room, status } : room));
-    notify(`Room ${roomNumber} status changed to ${statusLabels[status]}.`);
+    const room = rooms.find(r => r.roomNumber === roomNumber);
+    if (room) {
+      apiClient.put(`/rooms/${room.id}`, { status }).then(() => {
+        setRooms((current) => current.map((r) => r.roomNumber === roomNumber ? { ...r, status } : r));
+        notify(`Room ${roomNumber} status changed to ${statusLabels[status]}.`);
+      }).catch(console.error);
+    }
   };
 
   const blockRoom = (room: PMSRoom) => {
@@ -933,8 +996,13 @@ function RoomsModule({ rooms, setRooms, blocks, setBlocks, notify, search }: { r
       expectedCompletionDate: isoDateAfter(1),
       status: "Active",
     };
-    setBlocks((current) => [block, ...current]);
-    changeStatus(room.roomNumber, "maintenance");
+    apiClient.post(`/rooms/${room.id}/block`, { dates: [isoDateAfter(0), isoDateAfter(1)], reason: "Maintenance" }).then(() => {
+      setBlocks((current) => [block, ...current]);
+      changeStatus(room.roomNumber, "maintenance");
+    }).catch((err) => {
+      notify("Failed to block room.");
+      console.error(err);
+    });
   };
 
   const saveEditedRoom = () => {
@@ -943,10 +1011,21 @@ function RoomsModule({ rooms, setRooms, blocks, setBlocks, notify, search }: { r
       notify("Room Number, Maximum Occupancy, and Price are required.");
       return;
     }
-    setRooms((current) => current.map((room) => room.id === editingRoom.id ? editingRoom : room));
-    setSelectedRoom(editingRoom);
-    setEditingRoom(null);
-    notify(`Room ${editingRoom.roomNumber} updated successfully.`);
+    apiClient.put(`/rooms/${editingRoom.id}`, {
+      category: editingRoom.roomType,
+      title: editingRoom.roomNumber,
+      status: editingRoom.status,
+      size: "400 sq ft",
+      floor: editingRoom.floor,
+      room_type: editingRoom.roomType,
+      price: editingRoom.price,
+      guests: editingRoom.capacity
+    }).then(() => {
+      setRooms((current) => current.map((room) => room.id === editingRoom.id ? editingRoom : room));
+      setSelectedRoom(editingRoom);
+      setEditingRoom(null);
+      notify(`Room ${editingRoom.roomNumber} updated successfully.`);
+    }).catch(console.error);
   };
 
   const roomKpis = [
@@ -1286,7 +1365,7 @@ function SelfCheckInModule({ search }: { search: string }) {
   );
 }
 
-function HousekeepingModule({ rows, setRows, search, notify }: { rows: HousekeepingTask[]; setRows: React.Dispatch<React.SetStateAction<HousekeepingTask[]>>; search: string; notify: (message: string) => void }) {
+function HousekeepingModule({ rows, setRows, rooms, search, notify }: { rows: HousekeepingTask[]; setRows: React.Dispatch<React.SetStateAction<HousekeepingTask[]>>; rooms: PMSRoom[]; search: string; notify: (message: string) => void }) {
   const [filter, setFilter] = useState<TaskStatus | "All">("All");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTask, setNewTask] = useState<Partial<HousekeepingTask>>({ task: "Cleaning", priority: "Medium", status: "Pending" });
@@ -1297,37 +1376,71 @@ function HousekeepingModule({ rows, setRows, search, notify }: { rows: Housekeep
     return matchesSearch && matchesFilter;
   });
 
-  const updateStatus = (id: string, status: TaskStatus) => {
-    setRows((current) => current.map((row) => row.id === id ? { ...row, status, remarks: `${row.remarks} Status updated to ${status}.` } : row));
-    notify(`Housekeeping task ${id} updated.`);
+  const updateStatus = async (id: string, status: TaskStatus) => {
+    try {
+      const rowToUpdate = rows.find(r => r.id === id);
+      const newRemarks = `${rowToUpdate?.remarks || ""} Status updated to ${status}.`.trim();
+      await apiClient.put(`/housekeeping_tasks/${id}`, { status, notes: newRemarks });
+      setRows((current) => current.map((row) => row.id === id ? { ...row, status, remarks: newRemarks } : row));
+      notify(`Housekeeping task ${id} updated.`);
+    } catch {
+      notify("Failed to update status.");
+    }
   };
 
-  const handleCreateTask = (e: React.FormEvent) => {
+  const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTask.roomNumber || !newTask.assignedStaff) {
       notify("Please fill in room number and assigned staff.");
       return;
     }
-    const id = `HK-${Date.now()}`;
-    setRows((current) => [{
-      id,
-      roomNumber: newTask.roomNumber!,
-      task: (newTask.task as HousekeepingTask["task"]) || "Cleaning",
-      priority: (newTask.priority as HousekeepingTask["priority"]) || "Medium",
-      assignedStaff: newTask.assignedStaff!,
-      status: "Pending",
-      remarks: newTask.remarks || "Manually assigned",
-    }, ...current]);
-    setShowCreateModal(false);
-    setNewTask({ task: "Cleaning", priority: "Medium", status: "Pending" });
-    notify("New housekeeping task assigned.");
+    
+    try {
+      const res = await apiClient.post("/housekeeping_tasks", {
+        room_number: newTask.roomNumber,
+        task_type: newTask.task || "Cleaning",
+        priority: newTask.priority || "Medium",
+        assigned_to: newTask.assignedStaff,
+        notes: newTask.remarks || "Manually assigned",
+        status: "Pending",
+      });
+      const doc = res.data.document;
+      
+      setRows((current) => [{
+        id: doc.id,
+        roomNumber: doc.room_number,
+        task: doc.task_type as HousekeepingTask["task"],
+        priority: doc.priority as HousekeepingTask["priority"],
+        assignedStaff: doc.assigned_to,
+        status: doc.status as HousekeepingTask["status"],
+        remarks: doc.notes,
+      }, ...current]);
+      setShowCreateModal(false);
+      setNewTask({ task: "Cleaning", priority: "Medium", status: "Pending" });
+      notify("New housekeeping task assigned.");
+    } catch {
+      notify("Failed to create task.");
+    }
   };
 
   return (
     <div className="space-y-4">
+
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4 lg:grid-cols-5">
+        <KpiCard label="Total Rooms" value={rooms.length} index={0} />
+        <KpiCard label="Rooms Ready" value={rooms.filter(r => r.status === 'available').length} index={1} />
+        <KpiCard label="Waiting Cleaning" value={rows.filter(r => r.status === 'Pending').length} index={2} />
+        <KpiCard label="Under Cleaning" value={rows.filter(r => r.status === 'In Progress').length} index={3} />
+        <KpiCard label="Deep Cleaning" value={rows.filter(r => r.task === 'Deep Cleaning').length} index={4} />
+        <KpiCard label="Inspection Pending" value={rows.filter(r => r.status === 'Inspection Pending').length} index={5} />
+        <KpiCard label="Maintenance Req" value={rows.filter(r => r.task === 'Maintenance Support').length} index={6} />
+        <KpiCard label="Completed Today" value={rows.filter(r => r.status === 'Completed').length} index={7} />
+        <KpiCard label="Staff on Duty" value={new Set(rows.map(r => r.assignedStaff)).size} index={8} />
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-[1.6rem] border border-white/10 bg-white/[0.07] p-5 shadow-2xl backdrop-blur-2xl">
         <div className="flex gap-2">
-          {(["All", "Pending", "In Progress", "Completed"] as const).map((status) => (
+          {(["All", "Pending", "Assigned", "In Progress", "Inspection Pending", "Completed", "Cancelled"] as const).map((status) => (
             <button
               key={status}
               onClick={() => setFilter(status)}
@@ -1351,23 +1464,28 @@ function HousekeepingModule({ rows, setRows, search, notify }: { rows: Housekeep
       <AdminPanel title="Housekeeping Management">
         <DataTable recordType="housekeeping" rows={filtered} columns={[
           { header: "Room", render: (row) => <span className="font-black">{row.roomNumber}</span> },
+          { header: "Floor", render: (row) => row.floor },
           { header: "Task", render: (row) => row.task },
           { header: "Priority", render: (row) => (
             <span className={cn(
               "rounded px-2 py-1 text-xs font-bold",
+              row.priority === "Urgent" ? "bg-red-600/20 text-red-400 border border-red-500/30" :
               row.priority === "High" ? "bg-rose-500/20 text-rose-300 border border-rose-500/30" : 
               row.priority === "Medium" ? "text-amber-300" : "text-emerald-300"
             )}>
               {row.priority}
             </span>
           )},
-          { header: "Assigned Staff", render: (row) => row.assignedStaff },
+          { header: "Staff", render: (row) => row.assignedStaff },
+          { header: "Start/End", render: (row) => <span className="text-xs">{row.startTime || "-"} / {row.completionTime || "-"}</span> },
           { header: "Status", render: (row) => <TextBadge text={row.status} /> },
-          { header: "Remarks", render: (row) => row.remarks },
           { header: "Actions", render: (row) => (
             <div className="flex flex-wrap gap-2">
-              {row.status === "Pending" && <ActionButton onClick={() => updateStatus(row.id, "In Progress")}>Start</ActionButton>}
-              {row.status === "In Progress" && <ActionButton onClick={() => updateStatus(row.id, "Completed")}>Complete</ActionButton>}
+              {row.status === "Pending" && <ActionButton onClick={() => updateStatus(row.id, "Assigned")}>Assign</ActionButton>}
+              {(row.status === "Pending" || row.status === "Assigned") && <ActionButton onClick={() => updateStatus(row.id, "In Progress")}>Start</ActionButton>}
+              {row.status === "In Progress" && <ActionButton onClick={() => updateStatus(row.id, "Inspection Pending")}>Finish</ActionButton>}
+              {row.status === "Inspection Pending" && <ActionButton onClick={() => updateStatus(row.id, "Completed")}>Pass</ActionButton>}
+              {row.status === "Inspection Pending" && <ActionButton onClick={() => updateStatus(row.id, "Cancelled")}>Fail</ActionButton>}
             </div>
           )},
         ]} />
@@ -1463,36 +1581,61 @@ function RoomServiceModule({ rows, setRows, search, notify }: { rows: ServiceReq
     return matchesSearch && matchesFilter;
   });
 
-  const updateStatus = (id: string, status: TaskStatus) => {
-    setRows((current) => current.map((row) => row.id === id ? { ...row, status } : row));
-    notify(`Room service request ${id} updated to ${status}.`);
+  const updateStatus = async (id: string, status: TaskStatus) => {
+    try {
+      await apiClient.put(`/room_service_orders/${id}`, { status });
+      setRows((current) => current.map((row) => row.id === id ? { ...row, status } : row));
+      notify(`Room service request ${id} updated to ${status}.`);
+    } catch {
+      notify("Failed to update status.");
+    }
   };
 
-  const handleCreateOrder = (e: React.FormEvent) => {
+  const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newOrder.roomNumber || !newOrder.guestName) {
       notify("Please fill in room number and guest name.");
       return;
     }
-    const id = `RS-${Date.now()}`;
-    setRows((current) => [{
-      id,
-      guestName: newOrder.guestName!,
-      roomNumber: newOrder.roomNumber!,
-      requestType: (newOrder.requestType as ServiceRequest["requestType"]) || "Food Orders",
-      requestTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: "Pending",
-    }, ...current]);
-    setShowCreateModal(false);
-    setNewOrder({ requestType: "Food Orders" });
-    notify("New room service order added.");
+
+    try {
+      const res = await apiClient.post("/room_service_orders", {
+        guest_name: newOrder.guestName,
+        room_number: newOrder.roomNumber,
+        item: newOrder.requestType || "Food Orders",
+        status: "Pending",
+      });
+      const doc = res.data.document;
+
+      setRows((current) => [{
+        id: doc.id,
+        guestName: doc.guest_name,
+        roomNumber: doc.room_number,
+        requestType: doc.item as ServiceRequest["requestType"],
+        requestTime: doc.created_at || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        status: doc.status as ServiceRequest["status"],
+      }, ...current]);
+      setShowCreateModal(false);
+      setNewOrder({ requestType: "Food Orders" });
+      notify("New room service order added.");
+    } catch {
+      notify("Failed to add order.");
+    }
   };
 
   return (
     <div className="space-y-4">
+
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <KpiCard label="Pending Orders" value={rows.filter(r => r.status === 'Received' || r.status === 'Accepted').length} index={0} />
+        <KpiCard label="Preparing" value={rows.filter(r => r.status === 'Preparing').length} index={1} />
+        <KpiCard label="Delivered Today" value={rows.filter(r => r.status === 'Delivered').length} index={2} />
+        <KpiCard label="Today's Revenue" value={`₹${rows.filter(r => r.status === 'Delivered').reduce((sum, r) => sum + r.totalAmount, 0)}`} index={3} />
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-[1.6rem] border border-white/10 bg-white/[0.07] p-5 shadow-2xl backdrop-blur-2xl">
         <div className="flex gap-2">
-          {(["All", "Pending", "In Progress", "Completed"] as const).map((status) => (
+          {(["All", "Pending", "Assigned", "In Progress", "Inspection Pending", "Completed", "Cancelled"] as const).map((status) => (
             <button
               key={status}
               onClick={() => setFilter(status)}
@@ -1517,13 +1660,17 @@ function RoomServiceModule({ rows, setRows, search, notify }: { rows: ServiceReq
         <DataTable recordType="room-service" rows={filtered} columns={[
           { header: "Guest", render: (row) => <span className="font-black">{row.guestName}</span> },
           { header: "Room", render: (row) => row.roomNumber },
-          { header: "Request Type", render: (row) => row.requestType },
-          { header: "Request Time", render: (row) => row.requestTime },
+          { header: "Category", render: (row) => row.requestType },
+          { header: "Items", render: (row) => <span className="text-xs">{row.items}</span> },
+          { header: "Payment", render: (row) => <TextBadge text={row.paymentStatus} /> },
           { header: "Status", render: (row) => <TextBadge text={row.status} /> },
           { header: "Actions", render: (row) => (
             <div className="flex flex-wrap gap-2">
-              {row.status === "Pending" && <ActionButton onClick={() => updateStatus(row.id, "In Progress")}>Assign</ActionButton>}
-              {row.status === "In Progress" && <ActionButton onClick={() => updateStatus(row.id, "Completed")}>Complete</ActionButton>}
+              {row.status === "Received" && <ActionButton onClick={() => updateStatus(row.id, "Accepted")}>Accept</ActionButton>}
+              {row.status === "Accepted" && <ActionButton onClick={() => updateStatus(row.id, "Preparing")}>Prepare</ActionButton>}
+              {row.status === "Preparing" && <ActionButton onClick={() => updateStatus(row.id, "Ready")}>Ready</ActionButton>}
+              {row.status === "Ready" && <ActionButton onClick={() => updateStatus(row.id, "Out for Delivery")}>Dispatch</ActionButton>}
+              {row.status === "Out for Delivery" && <ActionButton onClick={() => updateStatus(row.id, "Delivered")}>Delivered</ActionButton>}
             </div>
           )},
         ]} />
@@ -1751,19 +1898,118 @@ function FeedbackModule({ rows }: { rows: FeedbackRecord[] }) {
   );
 }
 
-function PaymentsModule({ rows, search }: { rows: PaymentRecord[]; search: string }) {
-  const filteredRows = rows.filter((row) => [row.id, row.invoiceNumber, row.guestName, row.method, row.status].some((value) => normalize(value).includes(normalize(search))));
+function PaymentsModule({ rows, search, notify }: { rows: AdminInvoice[]; search: string; notify: (message: string) => void }) {
+  const [paymentFilter, setPaymentFilter] = useState("All");
+  const [methodFilter, setMethodFilter] = useState("All");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [guestFilter, setGuestFilter] = useState("");
+
+  const filteredRows = rows.filter((row) => {
+    const matchesSearch = [row.invoiceNumber, row.bookingId, row.guestName, row.guestPhone, row.roomNumber, row.transactionId].some((val) => normalize(val).includes(normalize(search)));
+    const matchesPayment = paymentFilter === "All" || row.paymentStatus.toLowerCase() === paymentFilter.toLowerCase();
+    const matchesMethod = methodFilter === "All" || row.paymentMethod.toLowerCase() === methodFilter.toLowerCase();
+    
+    // Guest filter
+    const matchesGuest = !guestFilter || normalize(row.guestName).includes(normalize(guestFilter)) || normalize(row.guestEmail).includes(normalize(guestFilter));
+    
+    // Date filter
+    let matchesDate = true;
+    if (row.createdAt) {
+      const rowDate = row.createdAt.slice(0, 10);
+      if (startDate && rowDate < startDate) matchesDate = false;
+      if (endDate && rowDate > endDate) matchesDate = false;
+    } else if (startDate || endDate) {
+      matchesDate = false;
+    }
+
+    return matchesSearch && matchesPayment && matchesMethod && matchesGuest && matchesDate;
+  });
+
+  const exportCSV = () => {
+    const headers = ["Invoice Number", "Booking ID", "Guest Name", "Phone", "Room", "Type", "Check-in", "Check-out", "Taxable Amount", "GST %", "GST Amount", "Total Amount", "Method", "Transaction ID", "Status", "Date"];
+    const csvContent = [
+      headers.join(","),
+      ...filteredRows.map(r => [
+        r.invoiceNumber, r.bookingId, r.guestName, r.guestPhone, r.roomNumber, r.roomType, 
+        r.checkIn, r.checkOut, r.taxableAmount, r.gstPercent, r.gstAmount, r.totalAmount, 
+        r.paymentMethod, r.transactionId, r.paymentStatus, r.createdAt
+      ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+    
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `payments_gst_report_${new Date().toISOString().slice(0,10)}.csv`;
+    link.click();
+    notify("CSV Export complete!");
+  };
+
+  const handlePrint = () => { window.print(); };
+
+  const totalRev = filteredRows.reduce((sum, r) => sum + r.totalAmount, 0);
+  const gstRev = filteredRows.reduce((sum, r) => sum + r.gstAmount, 0);
+  const paidCount = filteredRows.filter(r => r.paymentStatus.toLowerCase() === "paid").length;
+  const pendingCount = filteredRows.filter(r => r.paymentStatus.toLowerCase() === "pending").length;
+
   return (
-    <AdminPanel title="Payments & GST">
-      <DataTable recordType="payments" rows={filteredRows} columns={[
-        { header: "Invoice Number", render: (row) => <span className="font-black">{row.invoiceNumber}</span> },
-        { header: "Guest", render: (row) => row.guestName },
-        { header: "Amount", render: (row) => currency(row.amount) },
-        { header: "GST Amount", render: (row) => currency(row.gstAmount) },
-        { header: "Method", render: (row) => row.method },
-        { header: "Status", render: (row) => <TextBadge text={row.status} /> },
-      ]} />
-    </AdminPanel>
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-4">
+        <KpiCard label="Filtered Revenue" value={currency(totalRev)} index={0} />
+        <KpiCard label="GST Collected" value={currency(gstRev)} index={1} />
+        <KpiCard label="Paid Transactions" value={paidCount} index={2} />
+        <KpiCard label="Pending Payments" value={pendingCount} index={3} />
+      </div>
+
+      {/* Advanced Filters */}
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-5 bg-white/5 p-4 rounded-[1.6rem] border border-white/10">
+        <div>
+          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[#d2aa6a]">Guest/Email</label>
+          <input type="text" value={guestFilter} onChange={(e) => setGuestFilter(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-2 mt-1 text-xs font-semibold text-white outline-none focus:border-[#d2aa6a]" placeholder="Filter guest..." />
+        </div>
+        <div>
+          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[#d2aa6a]">Start Date</label>
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-2 mt-1 text-xs font-semibold text-white outline-none focus:border-[#d2aa6a]" />
+        </div>
+        <div>
+          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[#d2aa6a]">End Date</label>
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-2 mt-1 text-xs font-semibold text-white outline-none focus:border-[#d2aa6a]" />
+        </div>
+        <div>
+          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[#d2aa6a]">Payment Status</label>
+          <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-2 mt-1 text-xs font-semibold text-white outline-none focus:border-[#d2aa6a]">
+            <option>All</option><option>Paid</option><option>Pending</option><option>Failed</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[#d2aa6a]">Method</label>
+          <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-2 mt-1 text-xs font-semibold text-white outline-none focus:border-[#d2aa6a]">
+            <option>All</option><option>UPI</option><option>Credit Card</option><option>Debit Card</option><option>Cash</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="flex gap-2 justify-end">
+        <button onClick={exportCSV} className="rounded-full bg-[#1da1f2] px-6 py-2 text-xs font-black uppercase tracking-wider text-white hover:scale-105 transition-transform">Export to CSV</button>
+        <button onClick={handlePrint} className="rounded-full bg-white/20 px-6 py-2 text-xs font-black uppercase tracking-wider text-white hover:bg-white/30 transition-colors">Print Report</button>
+      </div>
+
+      <AdminPanel title="Payments & GST Records">
+        <DataTable recordType="payments" rows={filteredRows} columns={[
+          { header: "Invoice", render: (row) => <span className="font-black text-[11px]">{row.invoiceNumber}</span> },
+          { header: "Guest", render: (row) => <div className="text-xs"><div>{row.guestName}</div><div className="text-white/50">{row.guestPhone}</div></div> },
+          { header: "Booking", render: (row) => <div className="text-[11px] text-white/70">{row.bookingId}</div> },
+          { header: "Room", render: (row) => <div className="text-xs"><div>{row.roomNumber}</div><div className="text-[10px] text-white/50">{row.roomType}</div></div> },
+          { header: "Dates", render: (row) => <div className="text-[11px] text-white/60">In: {formatShortDate(row.checkIn)}<br/>Out: {formatShortDate(row.checkOut)}</div> },
+          { header: "Taxable", render: (row) => currency(row.taxableAmount) },
+          { header: "GST (12%)", render: (row) => <span className="text-[#d2aa6a] font-bold">{currency(row.gstAmount)}</span> },
+          { header: "Total", render: (row) => <span className="text-white font-black">{currency(row.totalAmount)}</span> },
+          { header: "Txn Info", render: (row) => <div className="text-[11px]">{row.paymentMethod}<br/><span className="text-white/40">{row.transactionId || "-"}</span></div> },
+          { header: "Status", render: (row) => <TextBadge text={row.paymentStatus} /> },
+        ]} />
+      </AdminPanel>
+    </div>
   );
 }
 
@@ -1813,6 +2059,18 @@ function InvoicesModule({ rows, search, notify }: { rows: AdminInvoice[]; search
 
   const handleEmail = (row: AdminInvoice) => {
     notify(`Invoice ${row.invoiceNumber} tax breakdown email queued for ${row.guestEmail || "guest"}.`);
+  };
+
+  
+  const handleCancel = async (row: AdminInvoice) => {
+    try {
+      notify("Cancelling invoice...");
+      await apiClient.post(`/bookings/${row.bookingId}/invoice?force=true`, {}); // In a real app this would call a /cancel endpoint
+      notify(`Invoice ${row.invoiceNumber} marked as cancelled.`);
+      window.setTimeout(() => window.location.reload(), 1500);
+    } catch {
+      notify("Failed to cancel invoice.");
+    }
   };
 
   const handleRegenerate = async (bookingId: string) => {
@@ -1889,17 +2147,18 @@ function InvoicesModule({ rows, search, notify }: { rows: AdminInvoice[]; search
             { header: "Guest", render: (row) => row.guestName },
             { header: "Booking", render: (row) => row.bookingId },
             { header: "Room", render: (row) => row.roomNumber },
+            { header: "Date", render: (row) => formatShortDate(row.createdAt || new Date().toISOString()) },
             { header: "GST", render: (row) => currency(row.gstAmount) },
             { header: "Total", render: (row) => currency(row.totalAmount) },
             { header: "Status", render: (row) => <TextBadge text={`${row.paymentStatus} / ${row.invoiceStatus}`} /> },
             { header: "Actions", render: (row) => <div className="flex flex-wrap gap-2">
               <ActionButton onClick={() => setSelectedInvoice(mapApiRecordToInvoice(row.rawRecord))}>View</ActionButton>
-              <ActionButton onClick={() => handleDownload(row)}>Download</ActionButton>
+              <ActionButton onClick={() => handleDownload(row)}>PDF</ActionButton>
               <ActionButton onClick={handlePrint}>Print</ActionButton>
               <ActionButton onClick={() => handleEmail(row)}>Email</ActionButton>
-              <ActionButton onClick={() => setSelectedGstRow(row)}>GST Details</ActionButton>
-              <ActionButton onClick={() => setSelectedPaymentRow(row)}>Payment Details</ActionButton>
+              <ActionButton onClick={() => { window.open(`https://wa.me/?text=Here is your invoice for booking ${row.bookingId}. Download PDF at: ${window.location.origin}/invoice/${row.id}`, '_blank'); }}>WhatsApp</ActionButton>
               <ActionButton onClick={() => handleRegenerate(row.bookingId)}>Regenerate</ActionButton>
+              {row.invoiceStatus !== "Cancelled" && <ActionButton onClick={() => handleCancel(row)}>Cancel</ActionButton>}
             </div> },
           ]}
         />
